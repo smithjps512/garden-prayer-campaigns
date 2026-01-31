@@ -3,7 +3,7 @@ import type { NextRequest } from 'next/server'
 import { verifySession } from '@/lib/auth'
 
 // Routes that don't require authentication
-const publicRoutes = ['/login', '/api/auth/login', '/api/auth/setup']
+const publicRoutes = ['/login', '/api/auth/login']
 
 // Routes that are always public (static assets, etc.)
 const alwaysPublic = ['/_next', '/favicon.ico', '/api/webhooks']
