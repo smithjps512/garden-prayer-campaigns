@@ -62,10 +62,10 @@ export async function POST(request: NextRequest) {
       businessName: playbook.business.name,
       positioning: playbook.positioning,
       founderStory: playbook.founderStory || undefined,
-      audiences: playbook.audiences as AudienceSegment[],
-      hooks: playbook.hooks as Hook[],
-      keyMessages: playbook.keyMessages as Record<string, string[]> | undefined,
-      objectionHandlers: playbook.objectionHandlers as Record<string, string> | undefined,
+      audiences: playbook.audiences as unknown as AudienceSegment[],
+      hooks: playbook.hooks as unknown as Hook[],
+      keyMessages: playbook.keyMessages as unknown as Record<string, string[]> | undefined,
+      objectionHandlers: playbook.objectionHandlers as unknown as Record<string, string> | undefined,
     }
 
     // Select hooks to use
