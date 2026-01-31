@@ -13,7 +13,7 @@ async function getCampaigns() {
         },
       },
       _count: {
-        select: { contents: true, posts: true },
+        select: { contents: true, tasks: true },
       },
     },
   })
@@ -87,7 +87,7 @@ export default async function CampaignsPage() {
                 <p className="text-sm text-gray-500 mt-1">
                   {campaign.playbook.business.name} •{' '}
                   {campaign._count.contents} content pieces •{' '}
-                  {campaign._count.posts} posts
+                  {campaign._count.tasks} tasks
                 </p>
               </div>
               <span
