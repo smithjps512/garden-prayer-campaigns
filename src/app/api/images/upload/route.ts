@@ -1,4 +1,5 @@
 import { NextRequest } from 'next/server'
+import { Prisma } from '@prisma/client'
 import prisma from '@/lib/prisma'
 import { getSession } from '@/lib/auth'
 import {
@@ -87,7 +88,7 @@ export async function POST(request: NextRequest) {
         storageUrl: result.url,
         type: type as 'product' | 'generic' | 'video_thumbnail',
         category,
-        tags,
+        tags: tags as Prisma.InputJsonValue | undefined,
         altText,
         width,
         height,

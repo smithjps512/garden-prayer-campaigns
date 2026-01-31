@@ -9,20 +9,26 @@ interface Business {
   slug: string
 }
 
+interface ImageTags {
+  segments?: string[]
+  emotions?: string[]
+  themes?: string[]
+}
+
 interface Image {
   id: string
   filename: string
   storageUrl: string
   type: string
   category: string | null
-  tags: { segments?: string[]; emotions?: string[]; themes?: string[] } | null
+  tags: Record<string, unknown> | null
   altText: string | null
   width: number | null
   height: number | null
   fileSize: number | null
   mimeType: string | null
   usageCount: number
-  createdAt: string
+  createdAt: Date | string
   business: { id: string; name: string; slug: string }
 }
 
@@ -429,56 +435,59 @@ export default function ImageLibrary({
                   )}
                 </dl>
 
-                {selectedImage.tags && Object.keys(selectedImage.tags).length > 0 && (
-                  <div className="mt-4 pt-4 border-t border-gray-200">
-                    <p className="text-sm font-medium text-gray-700 mb-2">Tags</p>
-                    {selectedImage.tags.segments && selectedImage.tags.segments.length > 0 && (
-                      <div className="mb-2">
-                        <p className="text-xs text-gray-500 mb-1">Segments</p>
-                        <div className="flex flex-wrap gap-1">
-                          {selectedImage.tags.segments.map((tag) => (
-                            <span
-                              key={tag}
-                              className="px-2 py-0.5 bg-blue-100 text-blue-700 rounded text-xs"
-                            >
-                              {tag}
-                            </span>
-                          ))}
+                {selectedImage.tags && Object.keys(selectedImage.tags).length > 0 && (() => {
+                  const tags = selectedImage.tags as ImageTags
+                  return (
+                    <div className="mt-4 pt-4 border-t border-gray-200">
+                      <p className="text-sm font-medium text-gray-700 mb-2">Tags</p>
+                      {tags.segments && tags.segments.length > 0 && (
+                        <div className="mb-2">
+                          <p className="text-xs text-gray-500 mb-1">Segments</p>
+                          <div className="flex flex-wrap gap-1">
+                            {tags.segments.map((tag) => (
+                              <span
+                                key={tag}
+                                className="px-2 py-0.5 bg-blue-100 text-blue-700 rounded text-xs"
+                              >
+                                {tag}
+                              </span>
+                            ))}
+                          </div>
                         </div>
-                      </div>
-                    )}
-                    {selectedImage.tags.emotions && selectedImage.tags.emotions.length > 0 && (
-                      <div className="mb-2">
-                        <p className="text-xs text-gray-500 mb-1">Emotions</p>
-                        <div className="flex flex-wrap gap-1">
-                          {selectedImage.tags.emotions.map((tag) => (
-                            <span
-                              key={tag}
-                              className="px-2 py-0.5 bg-purple-100 text-purple-700 rounded text-xs"
-                            >
-                              {tag}
-                            </span>
-                          ))}
+                      )}
+                      {tags.emotions && tags.emotions.length > 0 && (
+                        <div className="mb-2">
+                          <p className="text-xs text-gray-500 mb-1">Emotions</p>
+                          <div className="flex flex-wrap gap-1">
+                            {tags.emotions.map((tag) => (
+                              <span
+                                key={tag}
+                                className="px-2 py-0.5 bg-purple-100 text-purple-700 rounded text-xs"
+                              >
+                                {tag}
+                              </span>
+                            ))}
+                          </div>
                         </div>
-                      </div>
-                    )}
-                    {selectedImage.tags.themes && selectedImage.tags.themes.length > 0 && (
-                      <div>
-                        <p className="text-xs text-gray-500 mb-1">Themes</p>
-                        <div className="flex flex-wrap gap-1">
-                          {selectedImage.tags.themes.map((tag) => (
-                            <span
-                              key={tag}
-                              className="px-2 py-0.5 bg-green-100 text-green-700 rounded text-xs"
-                            >
-                              {tag}
-                            </span>
-                          ))}
+                      )}
+                      {tags.themes && tags.themes.length > 0 && (
+                        <div>
+                          <p className="text-xs text-gray-500 mb-1">Themes</p>
+                          <div className="flex flex-wrap gap-1">
+                            {tags.themes.map((tag) => (
+                              <span
+                                key={tag}
+                                className="px-2 py-0.5 bg-green-100 text-green-700 rounded text-xs"
+                              >
+                                {tag}
+                              </span>
+                            ))}
+                          </div>
                         </div>
-                      </div>
-                    )}
-                  </div>
-                )}
+                      )}
+                    </div>
+                  )
+                })()}
 
                 <div className="mt-6 pt-4 border-t border-gray-200 flex space-x-3">
                   <a

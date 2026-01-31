@@ -1,4 +1,5 @@
 import { NextRequest } from 'next/server'
+import { Prisma } from '@prisma/client'
 import prisma from '@/lib/prisma'
 import { getSession } from '@/lib/auth'
 import {
@@ -100,8 +101,8 @@ export async function POST(request: NextRequest) {
         slug,
         description: body.description?.trim(),
         websiteUrl: body.websiteUrl?.trim(),
-        brandColors: body.brandColors,
-        settings: body.settings,
+        brandColors: body.brandColors as Prisma.InputJsonValue | undefined,
+        settings: body.settings as Prisma.InputJsonValue | undefined,
       },
     })
 

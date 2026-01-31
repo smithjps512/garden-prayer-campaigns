@@ -54,8 +54,9 @@ export default async function ImagesPage({ searchParams }: PageProps) {
       </div>
 
       <Suspense fallback={<div>Loading...</div>}>
+        {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
         <ImageLibrary
-          initialImages={images}
+          initialImages={images as any}
           businesses={businesses}
           selectedBusiness={params.business}
         />

@@ -1,4 +1,5 @@
 import { NextRequest } from 'next/server'
+import { Prisma } from '@prisma/client'
 import prisma from '@/lib/prisma'
 import { getSession } from '@/lib/auth'
 import {
@@ -100,20 +101,22 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       }
     }
 
+    const updateData: Prisma.BusinessUpdateInput = {}
+
+    if (body.name) updateData.name = body.name.trim()
+    if (body.slug) updateData.slug = body.slug
+    if (body.description !== undefined) updateData.description = body.description?.trim() ?? null
+    if (body.websiteUrl !== undefined) updateData.websiteUrl = body.websiteUrl?.trim() ?? null
+    if (body.brandColors) updateData.brandColors = body.brandColors as Prisma.InputJsonValue
+    if (body.metaPageId !== undefined) updateData.metaPageId = body.metaPageId ?? null
+    if (body.metaIgId !== undefined) updateData.metaIgId = body.metaIgId ?? null
+    if (body.metaAdAccount !== undefined) updateData.metaAdAccount = body.metaAdAccount ?? null
+    if (body.pixelId !== undefined) updateData.pixelId = body.pixelId ?? null
+    if (body.settings) updateData.settings = body.settings as Prisma.InputJsonValue
+
     const business = await prisma.business.update({
       where: { id: existing.id },
-      data: {
-        ...(body.name && { name: body.name.trim() }),
-        ...(body.slug && { slug: body.slug }),
-        ...(body.description !== undefined && { description: body.description?.trim() }),
-        ...(body.websiteUrl !== undefined && { websiteUrl: body.websiteUrl?.trim() }),
-        ...(body.brandColors && { brandColors: body.brandColors }),
-        ...(body.metaPageId !== undefined && { metaPageId: body.metaPageId }),
-        ...(body.metaIgId !== undefined && { metaIgId: body.metaIgId }),
-        ...(body.metaAdAccount !== undefined && { metaAdAccount: body.metaAdAccount }),
-        ...(body.pixelId !== undefined && { pixelId: body.pixelId }),
-        ...(body.settings && { settings: body.settings }),
-      },
+      data: updateData,
     })
 
     // Log activity
