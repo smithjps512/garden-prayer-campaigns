@@ -1,0 +1,470 @@
+// Prisma schema for Campaign Engine
+// Marketing Automation System
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================
+// BUSINESSES
+// ============================================
+model Business {
+  id              String   @id @default(uuid())
+  name            String
+  slug            String   @unique
+  description     String?
+  websiteUrl      String?  @map("website_url")
+  brandColors     Json?    @map("brand_colors") // {primary: "#6A1A19", accent: "#F7AC13"}
+  metaPageId      String?  @map("meta_page_id")
+  metaIgId        String?  @map("meta_ig_id")
+  metaAdAccount   String?  @map("meta_ad_account")
+  pixelId         String?  @map("pixel_id")
+  settings        Json?
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  playbooks       Playbook[]
+  images          Image[]
+  imageRequests   ImageRequest[]
+  conversions     Conversion[]
+  activityLogs    ActivityLog[]
+
+  @@map("businesses")
+}
+
+// ============================================
+// PLAYBOOKS
+// ============================================
+enum PlaybookStatus {
+  draft
+  active
+  archived
+}
+
+model Playbook {
+  id               String         @id @default(uuid())
+  businessId       String         @map("business_id")
+  name             String
+  version          Int            @default(1)
+  status           PlaybookStatus @default(draft)
+  positioning      String?        // Core positioning statement
+  founderStory     String?        @map("founder_story")
+  audiences        Json?          // Array of audience segments
+  keyMessages      Json?          @map("key_messages") // Messages by segment
+  objectionHandlers Json?         @map("objection_handlers") // Objection → Response pairs
+  hooks            Json?          // Array of hooks to test
+  visualDirection  Json?          @map("visual_direction") // Brand guidelines, image style
+  content          Json?          // Full playbook content
+  createdAt        DateTime       @default(now()) @map("created_at")
+  updatedAt        DateTime       @updatedAt @map("updated_at")
+
+  // Relations
+  business         Business       @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  campaigns        Campaign[]
+
+  @@map("playbooks")
+}
+
+// ============================================
+// CAMPAIGNS
+// ============================================
+enum CampaignStatus {
+  draft
+  review
+  approved
+  setup
+  live
+  paused
+  completed
+  failed
+}
+
+model Campaign {
+  id                    String         @id @default(uuid())
+  playbookId            String         @map("playbook_id")
+  name                  String
+  status                CampaignStatus @default(draft)
+  targetAudience        String?        @map("target_audience") // Audience segment from playbook
+  targetMarkets         Json?          @map("target_markets") // Geographic targets
+  channels              Json?          // ["facebook", "instagram"]
+  budgetDaily           Decimal?       @map("budget_daily") @db.Decimal(10, 2)
+  budgetTotal           Decimal?       @map("budget_total") @db.Decimal(10, 2)
+  startDate             DateTime?      @map("start_date") @db.Date
+  endDate               DateTime?      @map("end_date") @db.Date // NULL = runs until stopped
+  successMetrics        Json?          @map("success_metrics") // {subscribers: 15, cac: 100}
+  performanceThresholds Json?          @map("performance_thresholds")
+  autoOptimize          Boolean        @default(true) @map("auto_optimize")
+  humanTasks            Json?          @map("human_tasks")
+  aiTasks               Json?          @map("ai_tasks")
+  approvedAt            DateTime?      @map("approved_at")
+  approvedBy            String?        @map("approved_by")
+  createdAt             DateTime       @default(now()) @map("created_at")
+  updatedAt             DateTime       @updatedAt @map("updated_at")
+
+  // Relations
+  playbook              Playbook       @relation(fields: [playbookId], references: [id], onDelete: Cascade)
+  contents              Content[]
+  imageRequests         ImageRequest[]
+  conversions           Conversion[]
+  tasks                 Task[]
+  escalations           Escalation[]
+  activityLogs          ActivityLog[]
+
+  @@map("campaigns")
+}
+
+// ============================================
+// IMAGES
+// ============================================
+enum ImageType {
+  product
+  generic
+  video_thumbnail
+}
+
+model Image {
+  id            String    @id @default(uuid())
+  businessId    String    @map("business_id")
+  filename      String
+  storageUrl    String    @map("storage_url")
+  thumbnailUrl  String?   @map("thumbnail_url")
+  type          ImageType @default(generic)
+  category      String?   // "feature_screenshot", "happy_teacher"
+  tags          Json?     // {segments: [], emotions: [], themes: []}
+  altText       String?   @map("alt_text")
+  width         Int?
+  height        Int?
+  fileSize      Int?      @map("file_size")
+  mimeType      String?   @map("mime_type")
+  usageCount    Int       @default(0) @map("usage_count")
+  createdAt     DateTime  @default(now()) @map("created_at")
+
+  // Relations
+  business      Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  contents      Content[]
+  imageRequests ImageRequest[] @relation("FulfilledImages")
+
+  @@map("images")
+}
+
+// ============================================
+// IMAGE REQUESTS
+// ============================================
+enum ImageRequestStatus {
+  pending
+  in_progress
+  completed
+  cancelled
+}
+
+model ImageRequest {
+  id              String             @id @default(uuid())
+  businessId      String             @map("business_id")
+  campaignId      String?            @map("campaign_id")
+  status          ImageRequestStatus @default(pending)
+  description     String?            // What image is needed
+  suggestedPrompt String?            @map("suggested_prompt") // AI-generated prompt
+  suggestedTags   Json?              @map("suggested_tags")
+  priority        Int                @default(5) // 1-10
+  fulfilledById   String?            @map("fulfilled_by")
+  requestedAt     DateTime           @default(now()) @map("requested_at")
+  completedAt     DateTime?          @map("completed_at")
+
+  // Relations
+  business        Business           @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  campaign        Campaign?          @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+  fulfilledBy     Image?             @relation("FulfilledImages", fields: [fulfilledById], references: [id], onDelete: SetNull)
+
+  @@map("image_requests")
+}
+
+// ============================================
+// CONTENT
+// ============================================
+enum ContentType {
+  ad
+  organic_post
+  story
+}
+
+enum ContentStatus {
+  generated
+  approved
+  scheduled
+  posted
+  paused
+  retired
+}
+
+model Content {
+  id                 String        @id @default(uuid())
+  campaignId         String        @map("campaign_id")
+  type               ContentType   @default(organic_post)
+  status             ContentStatus @default(generated)
+  headline           String?
+  body               String?
+  ctaText            String?       @map("cta_text")
+  ctaUrl             String?       @map("cta_url")
+  utmParams          Json?         @map("utm_params")
+  imageId            String?       @map("image_id")
+  platformVariants   Json?         @map("platform_variants")
+  hookSource         String?       @map("hook_source")
+  audienceSegment    String?       @map("audience_segment")
+  generationMetadata Json?         @map("generation_metadata")
+  performanceScore   Decimal?      @map("performance_score") @db.Decimal(5, 2)
+  createdAt          DateTime      @default(now()) @map("created_at")
+  updatedAt          DateTime      @updatedAt @map("updated_at")
+
+  // Relations
+  campaign           Campaign      @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  image              Image?        @relation(fields: [imageId], references: [id], onDelete: SetNull)
+  posts              Post[]
+  conversions        Conversion[]
+
+  @@map("content")
+}
+
+// ============================================
+// POSTS
+// ============================================
+enum Platform {
+  facebook
+  instagram
+  twitter
+}
+
+enum PostStatus {
+  scheduled
+  posted
+  failed
+  deleted
+}
+
+model Post {
+  id             String     @id @default(uuid())
+  contentId      String     @map("content_id")
+  platform       Platform
+  platformPostId String?    @map("platform_post_id")
+  status         PostStatus @default(scheduled)
+  scheduledFor   DateTime?  @map("scheduled_for")
+  postedAt       DateTime?  @map("posted_at")
+  errorMessage   String?    @map("error_message")
+  adSetId        String?    @map("ad_set_id")
+  targeting      Json?
+  budgetSpent    Decimal    @default(0) @map("budget_spent") @db.Decimal(10, 2)
+  createdAt      DateTime   @default(now()) @map("created_at")
+
+  // Relations
+  content        Content    @relation(fields: [contentId], references: [id], onDelete: Cascade)
+  performances   Performance[]
+  conversions    Conversion[]
+
+  @@map("posts")
+}
+
+// ============================================
+// PERFORMANCE
+// ============================================
+model Performance {
+  id             String   @id @default(uuid())
+  postId         String   @map("post_id")
+  recordedAt     DateTime @default(now()) @map("recorded_at")
+
+  // Engagement metrics
+  impressions    Int      @default(0)
+  reach          Int      @default(0)
+  clicks         Int      @default(0)
+  likes          Int      @default(0)
+  comments       Int      @default(0)
+  shares         Int      @default(0)
+  saves          Int      @default(0)
+
+  // Calculated rates
+  ctr            Decimal? @db.Decimal(5, 4)
+  engagementRate Decimal? @map("engagement_rate") @db.Decimal(5, 4)
+
+  // Conversion metrics
+  landingViews   Int      @default(0) @map("landing_views")
+  signups        Int      @default(0)
+  trials         Int      @default(0)
+  purchases      Int      @default(0)
+  revenue        Decimal  @default(0) @db.Decimal(10, 2)
+
+  // Cost metrics (paid only)
+  spend          Decimal  @default(0) @db.Decimal(10, 2)
+  cpc            Decimal? @db.Decimal(10, 2)
+  cpa            Decimal? @db.Decimal(10, 2)
+  roas           Decimal? @db.Decimal(10, 2)
+
+  // Relations
+  post           Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@map("performance")
+}
+
+// ============================================
+// CONVERSIONS
+// ============================================
+enum ConversionType {
+  click
+  signup
+  trial
+  purchase
+}
+
+model Conversion {
+  id          String         @id @default(uuid())
+  businessId  String         @map("business_id")
+  postId      String?        @map("post_id")
+  contentId   String?        @map("content_id")
+  campaignId  String?        @map("campaign_id")
+  type        ConversionType
+  value       Decimal?       @db.Decimal(10, 2)
+  utmSource   String?        @map("utm_source")
+  utmMedium   String?        @map("utm_medium")
+  utmCampaign String?        @map("utm_campaign")
+  utmContent  String?        @map("utm_content")
+  sessionId   String?        @map("session_id")
+  userAgent   String?        @map("user_agent")
+  ipAddress   String?        @map("ip_address")
+  geoMarket   String?        @map("geo_market")
+  createdAt   DateTime       @default(now()) @map("created_at")
+
+  // Relations
+  business    Business       @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  post        Post?          @relation(fields: [postId], references: [id], onDelete: SetNull)
+  content     Content?       @relation(fields: [contentId], references: [id], onDelete: SetNull)
+  campaign    Campaign?      @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+
+  @@map("conversions")
+}
+
+// ============================================
+// TASKS
+// ============================================
+enum TaskAssignee {
+  human
+  system
+}
+
+enum TaskStatus {
+  pending
+  in_progress
+  completed
+  blocked
+}
+
+model Task {
+  id              String       @id @default(uuid())
+  campaignId      String       @map("campaign_id")
+  assignee        TaskAssignee
+  type            String       // "create_image", "setup_meta", etc.
+  title           String
+  description     String?
+  instructions    String?
+  status          TaskStatus   @default(pending)
+  priority        Int          @default(5)
+  dependsOnId     String?      @map("depends_on")
+  dueDate         DateTime?    @map("due_date") @db.Date
+  completedAt     DateTime?    @map("completed_at")
+  completionNotes String?      @map("completion_notes")
+  createdAt       DateTime     @default(now()) @map("created_at")
+
+  // Relations
+  campaign        Campaign     @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  dependsOn       Task?        @relation("TaskDependency", fields: [dependsOnId], references: [id], onDelete: SetNull)
+  dependentTasks  Task[]       @relation("TaskDependency")
+
+  @@map("tasks")
+}
+
+// ============================================
+// ESCALATIONS
+// ============================================
+enum EscalationType {
+  below_threshold
+  persistent_failure
+  budget_depleted
+  anomaly_detected
+  strategic_question
+}
+
+enum EscalationSeverity {
+  info
+  warning
+  critical
+}
+
+enum EscalationStatus {
+  open
+  acknowledged
+  resolved
+  dismissed
+}
+
+model Escalation {
+  id               String             @id @default(uuid())
+  campaignId       String             @map("campaign_id")
+  type             EscalationType
+  severity         EscalationSeverity
+  title            String
+  description      String?
+  aiAnalysis       String?            @map("ai_analysis")
+  aiRecommendation String?            @map("ai_recommendation")
+  dataSnapshot     Json?              @map("data_snapshot")
+  status           EscalationStatus   @default(open)
+  humanResponse    String?            @map("human_response")
+  resolvedAt       DateTime?          @map("resolved_at")
+  createdAt        DateTime           @default(now()) @map("created_at")
+
+  // Relations
+  campaign         Campaign           @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  @@map("escalations")
+}
+
+// ============================================
+// ACTIVITY LOG
+// ============================================
+enum ActorType {
+  human
+  system
+}
+
+model ActivityLog {
+  id          String    @id @default(uuid())
+  businessId  String?   @map("business_id")
+  campaignId  String?   @map("campaign_id")
+  actor       ActorType
+  action      String    // "campaign_approved", "content_generated"
+  entityType  String?   @map("entity_type") // "campaign", "content", "post"
+  entityId    String?   @map("entity_id")
+  details     Json?
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  // Relations
+  business    Business? @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  campaign    Campaign? @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  @@map("activity_log")
+}
+
+// ============================================
+// USER (for authentication)
+// ============================================
+model User {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  passwordHash String   @map("password_hash")
+  name         String?
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  @@map("users")
+}
