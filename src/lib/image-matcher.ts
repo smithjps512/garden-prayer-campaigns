@@ -1,4 +1,5 @@
 import prisma from './prisma'
+import { Prisma } from '@prisma/client'
 
 export interface ImageTags {
   segments?: string[]
@@ -250,7 +251,7 @@ export async function createImageRequest(
       campaignId,
       description,
       suggestedPrompt,
-      suggestedTags: suggestedTags as unknown as Record<string, unknown>,
+      suggestedTags: suggestedTags as unknown as Prisma.InputJsonValue,
       priority,
       status: 'pending',
     },
