@@ -1,6 +1,9 @@
 import Anthropic from '@anthropic-ai/sdk'
 import mammoth from 'mammoth'
-import pdf from 'pdf-parse'
+import { createRequire } from 'module'
+
+const require = createRequire(import.meta.url)
+const pdfParse = require('pdf-parse')
 
 const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
@@ -95,7 +98,7 @@ async function parseFile(file: File): Promise<string> {
 }
 
 async function parsePdf(buffer: Buffer): Promise<string> {
-  const data = await pdf(buffer)
+  const data = await pdfParse(buffer)
   return data.text
 }
 
