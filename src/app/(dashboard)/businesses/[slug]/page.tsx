@@ -35,8 +35,12 @@ export default async function BusinessDetailPage({ params }: PageProps) {
     notFound()
   }
 
-  const brandColors = (business.brandColors as Record<string, string>) || {}
-  const settings = (business.settings as Record<string, unknown>) || {}
+  const brandColors = (business.brandColors as Record<string, string> | null) ?? {}
+  const settings = (business.settings as Record<string, unknown> | null) ?? {}
+
+  // Serialize dates for client rendering
+  const createdAt = new Date(business.createdAt).toLocaleDateString()
+  const updatedAt = new Date(business.updatedAt).toLocaleDateString()
 
   return (
     <div className="space-y-6">
@@ -271,13 +275,13 @@ export default async function BusinessDetailPage({ params }: PageProps) {
               <div>
                 <dt className="text-sm text-gray-500">Created</dt>
                 <dd className="text-sm font-medium text-gray-900 mt-0.5">
-                  {business.createdAt.toLocaleDateString()}
+                  {createdAt}
                 </dd>
               </div>
               <div>
                 <dt className="text-sm text-gray-500">Last Updated</dt>
                 <dd className="text-sm font-medium text-gray-900 mt-0.5">
-                  {business.updatedAt.toLocaleDateString()}
+                  {updatedAt}
                 </dd>
               </div>
             </dl>

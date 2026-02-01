@@ -59,7 +59,8 @@ export default function PlaybooksPage() {
       const res = await fetch('/api/businesses')
       const data = await res.json()
       if (data.success) {
-        setBusinesses(data.data)
+        // Handle paginated response
+        setBusinesses(data.data.items || data.data)
       }
     } catch (error) {
       console.error('Failed to fetch businesses:', error)
