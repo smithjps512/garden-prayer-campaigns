@@ -11,6 +11,8 @@ import {
   parseBody,
 } from '@/lib/api'
 
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
 interface RouteParams {
   params: Promise<{ id: string }>
 }
@@ -26,10 +28,9 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     const { id } = await params
 
     // Support lookup by ID or slug
+    const isUUID = UUID_REGEX.test(id)
     const business = await prisma.business.findFirst({
-      where: {
-        OR: [{ id }, { slug: id }],
-      },
+      where: isUUID ? { OR: [{ id }, { slug: id }] } : { slug: id },
       include: {
         playbooks: {
           orderBy: { updatedAt: 'desc' },
@@ -66,10 +67,9 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     const { id } = await params
 
     // Find the business first
+    const isUUID = UUID_REGEX.test(id)
     const existing = await prisma.business.findFirst({
-      where: {
-        OR: [{ id }, { slug: id }],
-      },
+      where: isUUID ? { OR: [{ id }, { slug: id }] } : { slug: id },
     })
 
     if (!existing) {
@@ -148,10 +148,9 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
     const { id } = await params
 
     // Find the business first
+    const isUUID = UUID_REGEX.test(id)
     const existing = await prisma.business.findFirst({
-      where: {
-        OR: [{ id }, { slug: id }],
-      },
+      where: isUUID ? { OR: [{ id }, { slug: id }] } : { slug: id },
     })
 
     if (!existing) {

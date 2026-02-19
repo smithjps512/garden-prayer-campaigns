@@ -7,11 +7,12 @@ interface PageProps {
   params: Promise<{ slug: string }>
 }
 
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
 async function getBusiness(slug: string) {
+  const isUUID = UUID_REGEX.test(slug)
   return prisma.business.findFirst({
-    where: {
-      OR: [{ id: slug }, { slug }],
-    },
+    where: isUUID ? { OR: [{ id: slug }, { slug }] } : { slug },
     include: {
       playbooks: {
         orderBy: { updatedAt: 'desc' },
