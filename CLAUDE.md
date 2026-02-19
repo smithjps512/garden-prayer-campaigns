@@ -9,7 +9,7 @@
 **Garden Prayer Campaigns** is a closed-loop marketing automation system that generates content from strategic playbooks, distributes across social platforms, tracks performance, and autonomously optimizes. Built for **Melissa for Educators** (EdTech — priority launch target) and **Vaquero Homes** (Real Estate — secondary).
 
 **Owner**: James (Garden Prayer Publishing LLC)
-**Priority Business**: Melissa for Educators is the primary launch target. All frontend completion work, seed data, and testing should prioritize this business context first.
+**Priority Business**: Melissa for Educators is the primary launch target. All integration work, testing, and sample data should prioritize this business context first.
 
 ## Tech Stack
 
@@ -20,6 +20,7 @@
 - **Storage**: Supabase Storage for images (S3-compatible)
 - **Auth**: JWT sessions via `jose` + `bcryptjs`, HTTP-only cookies
 - **Styling**: Tailwind CSS v4
+- **Scheduling**: Vercel Cron Jobs + Postgres queue (see Architecture Decisions)
 - **Deployment**: Vercel
 
 ## Build & Run Commands
@@ -39,15 +40,32 @@ npm run db:studio        # Prisma Studio GUI
 Required in `.env` (see `.env.example`):
 
 ```
+# Database
 DATABASE_URL=postgresql://postgres.[ref]:[pass]@aws-0-[region].pooler.supabase.com:6543/postgres
+
+# Supabase
 NEXT_PUBLIC_SUPABASE_URL=https://[ref].supabase.co
 SUPABASE_SERVICE_ROLE_KEY=eyJ...
+
+# Auth
 AUTH_SECRET=your-secret-key-at-least-32-characters-long
 ADMIN_EMAIL=admin@campaignengine.local
 ADMIN_PASSWORD=admin123
+
+# AI
 ANTHROPIC_API_KEY=sk-ant-...
+
+# App
 NEXT_PUBLIC_APP_URL=http://localhost:3000
+
+# Meta Integration (Sprint 4)
+META_APP_ID=your-meta-app-id
+META_APP_SECRET=your-meta-app-secret
+META_REDIRECT_URI=https://garden-prayer-campaigns.vercel.app/api/meta/callback
+CRON_SECRET=your-cron-secret-key
 ```
+
+**Note on CRON_SECRET**: Vercel Cron Jobs call API endpoints publicly. The `CRON_SECRET` is sent as a bearer token in the `Authorization` header. All cron endpoints must validate this token before processing.
 
 ---
 
@@ -58,6 +76,26 @@ NEXT_PUBLIC_APP_URL=http://localhost:3000
 - **Supabase Transaction pooler** (port 6543) with `?pgbouncer=true`. Port 5432 will fail.
 - **JWT auth via HTTP-only cookies** — no client-side token storage, no third-party auth providers.
 - **API response format** must follow existing pattern (see API section below).
+
+### Scheduling Architecture Decision (Sprint 4)
+**Using Vercel Cron + Postgres queue. NOT Redis/BullMQ.**
+
+Rationale: Redis + BullMQ requires a second hosting service, adds operational complexity, and introduces a new failure point — all for a pre-launch platform with two businesses. The simpler approach:
+
+- The existing `Post` model already has `scheduledFor` and `status` fields — this IS the queue
+- Vercel Cron Job hits `/api/cron/process-posts` every 5 minutes
+- That endpoint queries `WHERE scheduledFor <= now AND status = 'scheduled'`, posts to Meta, updates status
+- A second cron `/api/cron/poll-metrics` runs every 30 minutes to pull engagement data
+- All cron endpoints validate `CRON_SECRET` before processing
+
+**When to reconsider**: If posting volume exceeds 100+ posts/day or sub-minute scheduling precision is required, migrate to Redis/BullMQ on a dedicated worker service.
+
+### Meta API Integration Patterns (Sprint 4)
+- **Token storage**: Page access tokens stored encrypted in Business model (new `metaPageToken` field, encrypted at rest)
+- **Token refresh**: Long-lived tokens (60 days) with automatic refresh before expiry
+- **Rate limiting**: Meta API rate limits are per-page. Implement exponential backoff on 429 responses
+- **Platform differences**: Facebook accepts text+link+image posts directly. Instagram requires an image and uses a two-step publish flow (create media container → publish)
+- **Error handling**: Meta API errors should create Escalations automatically (same pattern as task blocking)
 
 ### Prisma JsonValue Type Casting (frequent gotcha)
 Prisma v5 JSON fields return `JsonValue` type. Always cast when accessing typed properties:
@@ -100,20 +138,24 @@ src/
 │   │   ├── page.tsx                    # Dashboard home (stats, activity)
 │   │   ├── businesses/                 # CRUD + [slug] detail + edit
 │   │   ├── playbooks/                  # List + [id] detail/editor
-│   │   ├── campaigns/                  # List + create modal ⚠️ MISSING detail page
-│   │   ├── content/                    # Generated content library ⚠️ display-only
+│   │   ├── campaigns/                  # List + create + [id] detail with actions
+│   │   ├── content/                    # Content library + generation + inline editing
 │   │   ├── images/                     # Image library + upload
-│   │   ├── tasks/                      # Task management ⚠️ read-only
-│   │   ├── analytics/                  # Performance metrics ⚠️ placeholder only
-│   │   └── escalations/               # Issues requiring attention ⚠️ no actions
+│   │   ├── tasks/                      # Task management with complete/block actions
+│   │   ├── analytics/                  # Performance metrics (real data from Performance model)
+│   │   └── escalations/               # Issues with acknowledge/resolve/dismiss actions
 │   └── api/
 │       ├── auth/                       # login, logout, session
 │       ├── businesses/                 # CRUD + [id]
 │       ├── playbooks/                  # CRUD + [id] + parse + generate + activate
 │       ├── campaigns/                  # CRUD + [id] + approve/launch/pause/resume/complete
-│       ├── content/                    # CRUD + generate
+│       ├── content/                    # CRUD + [id] + generate
 │       ├── images/                     # CRUD + upload
-│       └── tasks/                      # CRUD + [id]/complete + [id]/block
+│       ├── tasks/                      # CRUD + [id]/complete + [id]/block
+│       ├── escalations/               # CRUD + [id] (acknowledge/resolve/dismiss)
+│       ├── analytics/                  # Aggregated performance data
+│       ├── meta/                       # 🔄 Sprint 4: OAuth callback, webhooks
+│       └── cron/                       # 🔄 Sprint 4: process-posts, poll-metrics
 ├── components/
 │   ├── Sidebar.tsx                     # Navigation sidebar
 │   ├── Header.tsx                      # Top header with user menu
@@ -125,7 +167,8 @@ src/
     ├── claude.ts                       # Claude API: content gen, playbook gen, perf analysis
     ├── storage.ts                      # Supabase file uploads
     ├── document-parser.ts              # PDF/DOCX/TXT/MD → structured playbook via Claude
-    └── image-matcher.ts                # Weighted image matching (40% segment, 30% emotion, 20% theme, 10% usage)
+    ├── image-matcher.ts                # Weighted image matching
+    └── meta.ts                         # 🔄 Sprint 4: Meta API client (posting, metrics, tokens)
 ```
 
 ---
@@ -150,11 +193,32 @@ src/
 | Conversion | Tracking conversions | type (click/signup/trial/purchase), utm params |
 | ActivityLog | Audit trail | actor, action, entityType, details (JSON) |
 
+### Schema Changes Required for Sprint 4
+
+The following fields need to be added to existing models. Create a migration for these:
+
+**Business model** — Meta connection fields:
+- `metaPageId` (String, optional) — Facebook Page ID
+- `metaPageName` (String, optional) — Display name for connected page
+- `metaPageToken` (String, optional) — Encrypted long-lived page access token
+- `metaIgAccountId` (String, optional) — Instagram Business Account ID
+- `metaConnectedAt` (DateTime, optional) — When Meta was connected
+- `metaTokenExpiresAt` (DateTime, optional) — Token expiry for refresh scheduling
+
+**Post model** — verify these fields exist (they should from Sprint 1 schema):
+- `platform` — fb, ig, twitter
+- `status` — draft, scheduled, posting, posted, failed
+- `scheduledFor` — DateTime
+- `platformPostId` (String, optional) — Meta's post ID for metrics polling
+- `postedAt` (DateTime, optional) — Actual post time
+- `errorMessage` (String, optional) — Failure details
+
 ### Enum Statuses
 
 - **PlaybookStatus**: draft, active, archived
 - **CampaignStatus**: draft → review → approved → setup → live → paused → completed / failed
 - **ContentStatus**: generated, approved, scheduled, posted, paused, retired
+- **PostStatus**: draft, scheduled, posting, posted, failed
 - **TaskStatus**: pending, in_progress, completed, blocked
 - **TaskAssignee**: human, system
 
@@ -183,6 +247,16 @@ POST /api/content/generate { campaignId, count?, contentType?, platform? }
 ```
 Claude generates platform-optimized variations using playbook context (positioning, audiences, hooks). Auto-matches images using weighted algorithm.
 
+### Meta Posting Flow (Sprint 4)
+```
+Content (approved) → Schedule Post (select datetime + platform) → Post queued in Post model
+→ Cron picks up at scheduledFor → Posts to Meta API → Updates status to posted/failed
+→ Metrics cron polls engagement data → Writes to Performance model → Analytics dashboard shows results
+```
+
+**Facebook posting**: Single API call with message + link/image attachment
+**Instagram posting**: Two-step flow — (1) create media container with image URL + caption, (2) publish container
+
 ---
 
 ## API Response Format
@@ -207,6 +281,7 @@ All API routes follow this pattern:
 - JWT stored in HTTP-only cookie `campaign-engine-session` (7-day expiry)
 - Dashboard layout checks session and redirects to `/login` if missing
 - API routes use `ensureAuthenticated()` which throws if no valid session
+- Cron endpoints use `CRON_SECRET` bearer token (no JWT required)
 - If login fails after fresh deploy, verify the seed script created the admin user
 
 ---
@@ -221,80 +296,158 @@ Images upload to Supabase Storage bucket `images`:
 
 ---
 
-## Infrastructure Status (as of restart)
+## Infrastructure Status
 
 | Item | Status | Notes |
 |------|--------|-------|
 | Tests | ❌ None | No test files, no test runner configured |
 | CI/CD | ❌ None | No GitHub Actions or deployment pipelines |
 | Docker | ❌ None | No containerization |
-| Redis/BullMQ | ❌ Not configured | Needed for Sprint 4 job queue — not needed now |
-| Meta API | ❌ Not connected | DB fields exist but no OAuth flow — Sprint 4 scope |
+| Redis/BullMQ | ⏭️ Not needed | Using Vercel Cron + Postgres queue instead (see Architecture Decisions) |
+| Meta API | 🔄 In progress | Meta App being created, test page access available. App Review pending for production |
+| Vercel Cron | 🔜 Sprint 4C | Will configure in `vercel.json` |
 
 ---
 
-## Current Sprint: Frontend Completion (Sprint 3.5F)
+## Current Sprint: Sprint 4 — Meta Integration
 
-> **Objective**: Complete all frontend gaps in Sprints 1-3 so the platform is fully usable through the UI before moving to Sprint 4 (Meta Integration). All work should use Melissa for Educators context for testing and seed data.
+> **Objective**: Connect the platform to Meta (Facebook/Instagram) APIs to enable real social media posting, scheduling, and performance tracking. Uses Vercel Cron + Postgres queue for scheduling (no Redis). All work should be testable against James's Meta test page.
 
 See `SPRINT_STATUS.md` for detailed task tracking and completion status.
 
-### Sprint 3.5F Tasks (Priority Order)
+### Phase 4A: Meta OAuth + Connection Layer
+**Goal**: Let a business connect their Facebook Page and Instagram account.
 
-#### P0 — Blocking Core Usability
-1. **Campaign Detail Page** (`/campaigns/[id]/page.tsx`)
-   - View full campaign details (name, status, audience, channels, dates, metrics)
-   - Action buttons: Approve, Launch, Pause, Resume, Complete (call existing API endpoints)
-   - Display associated tasks and content
-   - Status badge with visual workflow indicator
+1. **Meta API Client** (`src/lib/meta.ts`)
+   - Wrapper around Meta Graph API (Facebook Pages API + Instagram Graph API)
+   - Token exchange: short-lived → long-lived page access token
+   - Token encryption for storage, decryption for use
+   - Methods: `exchangeToken()`, `getPages()`, `getIgAccount()`, `refreshToken()`
+   - Error handling with typed Meta API errors
 
-2. **Task Action Buttons** (`/tasks/page.tsx`)
-   - Add "Complete" and "Block" buttons to each task row
-   - Wire to existing `POST /api/tasks/[id]/complete` and `POST /api/tasks/[id]/block` endpoints
-   - Show dependency warnings (task X blocks task Y)
-   - Auto-refresh task list after actions
+2. **OAuth Flow**
+   - `GET /api/meta/auth` — Redirect to Meta OAuth dialog with required permissions
+   - `GET /api/meta/callback` — Handle OAuth callback, exchange code for token, store encrypted token
+   - Permissions requested: `pages_manage_posts`, `pages_read_engagement`, `instagram_basic`, `instagram_content_publish`
 
-#### P1 — Important for Content Workflow
-3. **Content Generation UI** (`/content/page.tsx`)
-   - Add "Generate Content" button/modal
-   - Campaign selector, count, content type, platform inputs
-   - Wire to existing `POST /api/content/generate` endpoint
-   - Show generation progress/loading state
-   - Display results inline after generation
+3. **Business Settings — Meta Connection UI**
+   - "Connect to Meta" button on business edit/detail page
+   - Page selector (user may have multiple pages — let them pick)
+   - Instagram account auto-detection from connected page
+   - Connection status display (connected page name, token expiry)
+   - "Disconnect" option that clears stored tokens
 
-4. **Content Editing** (`/content/page.tsx` or `/content/[id]/page.tsx`)
-   - Edit generated content (headline, body, CTA) before approval
-   - Status change buttons (approve, retire)
-   - Image reassignment from image library
+4. **Schema Migration**
+   - Add Meta fields to Business model (see Schema Changes section above)
+   - Run migration and verify with `db:push`
 
-#### P2 — Operational Completeness
-5. **Escalation Actions** (`/escalations/page.tsx`)
-   - Add Acknowledge, Resolve, Dismiss buttons
-   - Wire to appropriate API endpoints (may need to create these)
-   - Show AI analysis and recommendation prominently
+### Phase 4B: Posting Engine
+**Goal**: Post approved content to Facebook and Instagram from the UI.
 
-6. **Analytics — Real Data** (`/analytics/page.tsx`)
-   - Replace static placeholder cards with real data from Performance model
-   - Basic charts (impressions, clicks, CTR over time)
-   - Per-campaign breakdown
-   - Note: Full analytics engine is Sprint 5 — this is just "show what exists"
+1. **Posting Service** (`src/lib/meta.ts` — extend)
+   - `postToFacebook(pageId, token, { message, link?, imageUrl? })` — Single API call
+   - `postToInstagram(igAccountId, token, { imageUrl, caption })` — Two-step: create container → publish
+   - Handle platform-specific formatting (FB supports text-only, IG requires image)
+   - Return `platformPostId` for later metrics polling
+   - Auto-create Escalation on API failure (severity based on error type)
 
-### Definition of Done for Sprint 3.5F
-- All pages listed above are interactive (not just display-only)
-- Campaign lifecycle can be driven entirely from the UI (create → approve → manage tasks → launch)
-- Content can be generated, reviewed, and approved from the UI
-- Tested end-to-end with Melissa for Educators data
+2. **Post Creation API**
+   - `POST /api/posts` — Create a post from approved Content
+   - Map Content fields to platform format (headline + body → message, ctaText → link text)
+   - Attach image from Content's matched image
+   - Validate business has Meta connection before allowing post
+   - For immediate posting: set status to `posting`, call Meta API, update to `posted` or `failed`
+
+3. **"Post Now" UI**
+   - Button on content cards (only for approved content with connected business)
+   - Platform selector (Facebook, Instagram, or both)
+   - Preview of how the post will look on each platform
+   - Confirmation dialog → post → show success/failure
+   - Update content status to `posted`
+
+4. **Post Status Tracking**
+   - Posts list page or tab on campaign detail showing all posts
+   - Status badges: scheduled, posting, posted, failed
+   - Failed posts show error message and "Retry" button
+   - Link to live post on platform (using `platformPostId`)
+
+### Phase 4C: Scheduling + Queue
+**Goal**: Schedule posts for future dates, process them automatically via cron.
+
+1. **Vercel Cron Configuration** (`vercel.json`)
+   ```json
+   {
+     "crons": [
+       { "path": "/api/cron/process-posts", "schedule": "*/5 * * * *" },
+       { "path": "/api/cron/poll-metrics", "schedule": "*/30 * * * *" }
+     ]
+   }
+   ```
+
+2. **Post Processing Cron** (`/api/cron/process-posts`)
+   - Validate `CRON_SECRET` bearer token
+   - Query: `Post WHERE scheduledFor <= now AND status = 'scheduled' ORDER BY scheduledFor ASC LIMIT 10`
+   - For each post: set status `posting` → call Meta API → set `posted` or `failed`
+   - Log results to ActivityLog
+   - Handle partial failures (some posts succeed, others fail in same batch)
+
+3. **Schedule UI**
+   - Extend "Post Now" to include "Schedule" option with date/time picker
+   - Show scheduled posts in a queue view (calendar or list)
+   - Cancel/reschedule actions for queued posts
+   - Visual indicator of next scheduled post
+
+4. **UTM Parameter Generation**
+   - Auto-generate UTM params for all outbound links: `utm_source`, `utm_medium`, `utm_campaign`, `utm_content`
+   - Pattern: `?utm_source=facebook&utm_medium=social&utm_campaign={campaign-slug}&utm_content={content-id}`
+   - Store UTM params on Post model for conversion tracking
+   - Utility function in `src/lib/utm.ts`
+
+### Phase 4D: Metrics + Tracking
+**Goal**: Pull engagement data from Meta and track conversions.
+
+1. **Metrics Polling Cron** (`/api/cron/poll-metrics`)
+   - Validate `CRON_SECRET` bearer token
+   - Query: `Post WHERE status = 'posted' AND postedAt > (now - 30 days)`
+   - For each post: call Meta API for impressions, reach, clicks, reactions, comments, shares
+   - Upsert into Performance model (create or update)
+   - Handle rate limiting with exponential backoff
+
+2. **Conversion Webhook** (`/api/webhooks/conversion`)
+   - Receives conversion events (from UTM-tagged traffic hitting your site)
+   - Maps UTM params back to Campaign and Content
+   - Creates Conversion record with type (click, signup, trial, purchase)
+   - No auth required (webhook) but validate payload structure
+
+3. **Analytics Dashboard Update**
+   - The analytics page already reads from Performance model (built in Sprint 3.5F)
+   - Verify it displays real post data correctly once metrics start flowing
+   - Add post-level drill-down if not present
+   - Add "Last Updated" timestamp from most recent metrics poll
+
+### Definition of Done for Sprint 4
+- A Melissa for Educators campaign can be posted to a test Facebook Page from the UI
+- Posts can be scheduled for future dates and are processed automatically by cron
+- Engagement metrics are pulled from Meta and visible in the analytics dashboard
+- UTM parameters are auto-generated on all outbound links
+- Conversion webhook endpoint is functional
+- Meta connection can be established and disconnected from business settings
+- Error states create escalations automatically
 
 ---
 
-## Sprint Roadmap (After 3.5F)
+## Sprint Roadmap
 
-| Sprint | Focus | Dependencies |
-|--------|-------|-------------|
-| **3.5F** (current) | Frontend completion for Sprints 1-3 | None |
-| **4** | Meta Integration — OAuth, posting, scheduling | Redis/BullMQ setup required |
-| **5** | Analytics engine + optimization | Real post data from Sprint 4 |
-| **6** | Polish + production launch | All sprints complete |
+| Sprint | Focus | Status |
+|--------|-------|--------|
+| 1 | Foundation | ✅ Complete |
+| 2 | Playbooks + Content | ✅ Complete |
+| 3 | Campaigns + Tasks | ✅ Complete |
+| 3.5 | Document Upload | ✅ Complete |
+| 3.5F | Frontend Completion | ✅ Complete |
+| **4** | **Meta Integration** | **🔄 Active** |
+| 5 | Analytics engine + optimization | Not started |
+| 6 | Polish + production launch | Not started |
 
 ---
 
@@ -303,7 +456,11 @@ See `SPRINT_STATUS.md` for detailed task tracking and completion status.
 | Sprint | Scope | Backend | Frontend | Notes |
 |--------|-------|---------|----------|-------|
 | 1 | Foundation | ✅ Complete | ✅ Complete | Auth, dashboard, business CRUD all working |
-| 2 | Playbooks + Content | ✅ Complete | ⚠️ Partial | Content library is display-only, no generation UI |
-| 3 | Campaigns + Tasks | ✅ Complete | ⚠️ Partial | No campaign detail page, tasks are read-only |
+| 2 | Playbooks + Content | ✅ Complete | ✅ Complete | AI generation, document parsing, content generation + editing |
+| 3 | Campaigns + Tasks | ✅ Complete | ✅ Complete | Full lifecycle API + campaign detail page + task actions |
 | 3.5 | Document Upload | ✅ Complete | ✅ Complete | PDF/DOCX parsing → Claude extraction |
-| **3.5F** | **Frontend Gaps** | — | 🔄 Active | **Current sprint** |
+| 3.5F | Frontend Gaps | — | ✅ Complete | Campaign detail, task actions, content gen/edit, escalation actions, analytics real data |
+
+### Deferred Items (from Sprint 3.5F)
+- **Image reassignment UI** — API supports it (`PUT /api/content/[id]` with `imageId`), needs reusable image browser component. Target: Sprint 5 or 6.
+- **Time-series charts** — Analytics shows aggregate data. Time-series charts planned for Sprint 5 with full analytics engine.
