@@ -59,20 +59,35 @@
 
 ## P2 — Operational Completeness
 
-### 5. Escalation Actions (`/escalations/page.tsx`) — NOT STARTED
-- [ ] Add Acknowledge, Resolve, Dismiss buttons
-- [ ] Wire to appropriate API endpoints (may need to create these)
-- [ ] Show AI analysis and recommendation prominently
+### 5. Escalation Actions (`/escalations/page.tsx`) — COMPLETE
+- [x] Add Acknowledge, Resolve, Dismiss buttons
+- [x] Created `/api/escalations` route (GET list with status/severity filters)
+- [x] Created `/api/escalations/[id]` route (GET single, PATCH for status changes)
+- [x] Status transition validation (open → acknowledged → resolved/dismissed)
+- [x] Response modal for resolve/dismiss with optional human response
+- [x] Show AI analysis and recommendation prominently
+- [x] Show human response when provided
+- [x] Status and severity filter dropdowns
+- [x] Campaign links from escalation cards
+- [x] Activity logging for all escalation actions
+- [x] Converted from server component to client component
 
-### 6. Analytics — Real Data (`/analytics/page.tsx`) — NOT STARTED
-- [ ] Replace static placeholder cards with real data from Performance model
-- [ ] Basic charts (impressions, clicks, CTR over time)
-- [ ] Per-campaign breakdown
+### 6. Analytics — Real Data (`/analytics/page.tsx`) — COMPLETE
+- [x] Created `/api/analytics` route (aggregated Performance data)
+- [x] Replace static placeholder cards with real data from Performance model
+- [x] Overview stats: impressions, clicks, CTR, conversions, spend, ROAS
+- [x] Engagement stats: likes, comments, shares, saves, signups, revenue
+- [x] Per-campaign breakdown table with links
+- [x] Campaign filter dropdown
+- [x] Pipeline summary (content count, post count, performance records)
+- [x] Graceful empty state when no performance data exists
+- [x] Converted from static component to client component
+- [ ] Time-series charts (deferred — needs charting library, full implementation in Sprint 5)
 
 ---
 
 ## Definition of Done
-- [ ] All pages listed above are interactive (not just display-only)
-- [ ] Campaign lifecycle can be driven entirely from the UI (create → approve → manage tasks → launch)
-- [ ] Content can be generated, reviewed, and approved from the UI
+- [x] All pages listed above are interactive (not just display-only)
+- [x] Campaign lifecycle can be driven entirely from the UI (create → approve → manage tasks → launch)
+- [x] Content can be generated, reviewed, and approved from the UI
 - [ ] Tested end-to-end with Melissa for Educators data
