@@ -12,7 +12,7 @@ interface Business {
   websiteUrl: string | null
   brandColors: Record<string, string> | null
   metaPageId: string | null
-  metaIgId: string | null
+  metaIgAccountId: string | null
   metaAdAccount: string | null
   pixelId: string | null
   settings: Record<string, unknown> | null
@@ -36,7 +36,7 @@ export default function EditBusinessPage() {
     secondaryColor: '#1D4ED8',
     accentColor: '#F59E0B',
     metaPageId: '',
-    metaIgId: '',
+    metaIgAccountId: '',
     metaAdAccount: '',
     pixelId: '',
   })
@@ -64,7 +64,7 @@ export default function EditBusinessPage() {
           secondaryColor: colors.secondary || '#1D4ED8',
           accentColor: colors.accent || '#F59E0B',
           metaPageId: business.metaPageId || '',
-          metaIgId: business.metaIgId || '',
+          metaIgAccountId: business.metaIgAccountId || '',
           metaAdAccount: business.metaAdAccount || '',
           pixelId: business.pixelId || '',
         })
@@ -98,7 +98,7 @@ export default function EditBusinessPage() {
             accent: formData.accentColor,
           },
           metaPageId: formData.metaPageId || null,
-          metaIgId: formData.metaIgId || null,
+          metaIgAccountId: formData.metaIgAccountId || null,
           metaAdAccount: formData.metaAdAccount || null,
           pixelId: formData.pixelId || null,
         }),
@@ -309,14 +309,14 @@ export default function EditBusinessPage() {
                 />
               </div>
               <div>
-                <label htmlFor="metaIgId" className="block text-sm font-medium text-gray-700">
+                <label htmlFor="metaIgAccountId" className="block text-sm font-medium text-gray-700">
                   Instagram ID
                 </label>
                 <input
                   type="text"
-                  id="metaIgId"
-                  value={formData.metaIgId}
-                  onChange={(e) => setFormData((prev) => ({ ...prev, metaIgId: e.target.value }))}
+                  id="metaIgAccountId"
+                  value={formData.metaIgAccountId}
+                  onChange={(e) => setFormData((prev) => ({ ...prev, metaIgAccountId: e.target.value }))}
                   className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 />
               </div>

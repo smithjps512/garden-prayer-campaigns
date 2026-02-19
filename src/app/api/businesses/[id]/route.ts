@@ -83,7 +83,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       websiteUrl?: string
       brandColors?: Record<string, string>
       metaPageId?: string
-      metaIgId?: string
+      metaIgAccountId?: string
       metaAdAccount?: string
       pixelId?: string
       settings?: Record<string, unknown>
@@ -109,7 +109,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     if (body.websiteUrl !== undefined) updateData.websiteUrl = body.websiteUrl?.trim() ?? null
     if (body.brandColors) updateData.brandColors = body.brandColors as Prisma.InputJsonValue
     if (body.metaPageId !== undefined) updateData.metaPageId = body.metaPageId ?? null
-    if (body.metaIgId !== undefined) updateData.metaIgId = body.metaIgId ?? null
+    if (body.metaIgAccountId !== undefined) updateData.metaIgAccountId = body.metaIgAccountId ?? null
     if (body.metaAdAccount !== undefined) updateData.metaAdAccount = body.metaAdAccount ?? null
     if (body.pixelId !== undefined) updateData.pixelId = body.pixelId ?? null
     if (body.settings) updateData.settings = body.settings as Prisma.InputJsonValue

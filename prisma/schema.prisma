@@ -14,19 +14,23 @@ datasource db {
 // BUSINESSES
 // ============================================
 model Business {
-  id              String   @id @default(uuid())
-  name            String
-  slug            String   @unique
-  description     String?
-  websiteUrl      String?  @map("website_url")
-  brandColors     Json?    @map("brand_colors") // {primary: "#6A1A19", accent: "#F7AC13"}
-  metaPageId      String?  @map("meta_page_id")
-  metaIgId        String?  @map("meta_ig_id")
-  metaAdAccount   String?  @map("meta_ad_account")
-  pixelId         String?  @map("pixel_id")
-  settings        Json?
-  createdAt       DateTime @default(now()) @map("created_at")
-  updatedAt       DateTime @updatedAt @map("updated_at")
+  id                String    @id @default(uuid())
+  name              String
+  slug              String    @unique
+  description       String?
+  websiteUrl        String?   @map("website_url")
+  brandColors       Json?     @map("brand_colors") // {primary: "#6A1A19", accent: "#F7AC13"}
+  metaPageId        String?   @map("meta_page_id")
+  metaPageName      String?   @map("meta_page_name")
+  metaPageToken     String?   @map("meta_page_token") // Encrypted long-lived page access token
+  metaIgAccountId   String?   @map("meta_ig_account_id")
+  metaConnectedAt   DateTime? @map("meta_connected_at")
+  metaTokenExpiresAt DateTime? @map("meta_token_expires_at")
+  metaAdAccount     String?   @map("meta_ad_account")
+  pixelId           String?   @map("pixel_id")
+  settings          Json?
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
 
   // Relations
   playbooks       Playbook[]
@@ -240,7 +244,9 @@ enum Platform {
 }
 
 enum PostStatus {
+  draft
   scheduled
+  posting
   posted
   failed
   deleted
