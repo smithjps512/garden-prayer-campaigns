@@ -36,17 +36,24 @@
 
 ## P1 — Important for Content Workflow
 
-### 3. Content Generation UI (`/content/page.tsx`) — NOT STARTED
-- [ ] Add "Generate Content" button/modal
-- [ ] Campaign selector, count, content type, platform inputs
-- [ ] Wire to `POST /api/content/generate`
-- [ ] Show generation progress/loading state
-- [ ] Display results inline after generation
+### 3. Content Generation UI (`/content/page.tsx`) — COMPLETE
+- [x] Add "Generate Content" button/modal
+- [x] Campaign selector, count (1-20), content type, platform inputs
+- [x] Wire to `POST /api/content/generate`
+- [x] Show generation progress with spinner and time estimate (15-30s)
+- [x] In-modal progress indicator during generation
+- [x] Success banner with generated count after completion
+- [x] Auto-filters to generated campaign's content after generation
+- [x] Filter by status and campaign
+- [x] Converted from server component to client component
 
-### 4. Content Editing (`/content/page.tsx` or `/content/[id]/page.tsx`) — NOT STARTED
-- [ ] Edit generated content (headline, body, CTA) before approval
-- [ ] Status change buttons (approve, retire)
-- [ ] Image reassignment from image library
+### 4. Content Editing (`/content/page.tsx`) — COMPLETE
+- [x] Inline edit of headline, body, CTA text (separate EditForm component)
+- [x] Status change buttons: Approve, Unapprove, Retire, Restore
+- [x] Delete button (prevented for posted content)
+- [x] Created `/api/content/[id]` route (GET/PUT/DELETE)
+- [x] Activity logging for all content changes
+- [ ] Image reassignment from image library (deferred — needs image picker component)
 
 ---
 
