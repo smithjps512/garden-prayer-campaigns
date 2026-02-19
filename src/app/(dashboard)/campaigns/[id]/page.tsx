@@ -339,7 +339,7 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
 
       {/* Tab content */}
       {activeTab === 'overview' && <OverviewTab campaign={campaign} />}
-      {activeTab === 'tasks' && <TasksTab tasks={campaign.tasks} />}
+      {activeTab === 'tasks' && <TasksTab tasks={campaign.tasks} onRefresh={fetchCampaign} />}
       {activeTab === 'content' && <ContentTab contents={campaign.contents} />}
       {activeTab === 'escalations' && <EscalationsTab escalations={campaign.escalations} />}
     </div>
@@ -541,7 +541,62 @@ function Detail({ label, value }: { label: string; value: string | null | undefi
 
 // --- Tasks Tab ---
 
-function TasksTab({ tasks }: { tasks: TaskItem[] }) {
+function TasksTab({ tasks, onRefresh }: { tasks: TaskItem[]; onRefresh: () => Promise<void> }) {
+  const [actionLoading, setActionLoading] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [blockingTaskId, setBlockingTaskId] = useState<string | null>(null)
+  const [blockReason, setBlockReason] = useState('')
+
+  async function handleComplete(taskId: string) {
+    setActionLoading(taskId)
+    setError(null)
+    try {
+      const res = await fetch(`/api/tasks/${taskId}/complete`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      })
+      const data = await res.json()
+      if (data.success) {
+        await onRefresh()
+      } else {
+        setError(data.error || 'Failed to complete task')
+      }
+    } catch {
+      setError('Failed to complete task')
+    } finally {
+      setActionLoading(null)
+    }
+  }
+
+  async function handleBlock(taskId: string) {
+    if (!blockReason.trim()) {
+      setError('Please provide a reason for blocking this task')
+      return
+    }
+    setActionLoading(taskId)
+    setError(null)
+    try {
+      const res = await fetch(`/api/tasks/${taskId}/block`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason: blockReason.trim() }),
+      })
+      const data = await res.json()
+      if (data.success) {
+        setBlockingTaskId(null)
+        setBlockReason('')
+        await onRefresh()
+      } else {
+        setError(data.error || 'Failed to block task')
+      }
+    } catch {
+      setError('Failed to block task')
+    } finally {
+      setActionLoading(null)
+    }
+  }
+
   if (tasks.length === 0) {
     return (
       <div className="bg-white rounded-lg border border-gray-200 p-8 text-center">
@@ -555,12 +610,29 @@ function TasksTab({ tasks }: { tasks: TaskItem[] }) {
 
   return (
     <div className="space-y-6">
+      {error && (
+        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg flex items-center justify-between">
+          <span>{error}</span>
+          <button onClick={() => setError(null)} className="text-red-500 hover:text-red-700">
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+      )}
+
       {humanTasks.length > 0 && (
         <div>
           <h3 className="font-semibold text-gray-900 mb-3">Human Tasks</h3>
           <div className="bg-white rounded-lg border border-gray-200 divide-y divide-gray-100">
             {humanTasks.map((task) => (
-              <TaskRow key={task.id} task={task} />
+              <TaskRow
+                key={task.id}
+                task={task}
+                actionLoading={actionLoading}
+                onComplete={handleComplete}
+                onStartBlock={setBlockingTaskId}
+              />
             ))}
           </div>
         </div>
@@ -571,21 +643,88 @@ function TasksTab({ tasks }: { tasks: TaskItem[] }) {
           <h3 className="font-semibold text-gray-900 mb-3">System Tasks</h3>
           <div className="bg-white rounded-lg border border-gray-200 divide-y divide-gray-100">
             {systemTasks.map((task) => (
-              <TaskRow key={task.id} task={task} />
+              <TaskRow
+                key={task.id}
+                task={task}
+                actionLoading={actionLoading}
+                onComplete={handleComplete}
+                onStartBlock={setBlockingTaskId}
+              />
             ))}
           </div>
         </div>
       )}
+
+      {/* Block Reason Modal */}
+      {blockingTaskId && (() => {
+        const blockTask = tasks.find((t) => t.id === blockingTaskId)
+        return blockTask ? (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-lg shadow-xl max-w-md w-full m-4">
+              <div className="p-6 border-b border-gray-200">
+                <h2 className="text-lg font-semibold text-gray-900">Block Task</h2>
+                <p className="text-sm text-gray-500 mt-1">
+                  Mark &quot;{blockTask.title}&quot; as blocked
+                </p>
+              </div>
+              <div className="p-6">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Reason for blocking
+                </label>
+                <textarea
+                  value={blockReason}
+                  onChange={(e) => setBlockReason(e.target.value)}
+                  rows={3}
+                  placeholder="Describe why this task is blocked..."
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  autoFocus
+                />
+                <p className="text-xs text-gray-400 mt-2">
+                  This will create an escalation for the blocked task.
+                </p>
+              </div>
+              <div className="p-6 border-t border-gray-200 flex justify-end gap-3">
+                <button
+                  onClick={() => { setBlockingTaskId(null); setBlockReason('') }}
+                  className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => handleBlock(blockingTaskId)}
+                  disabled={actionLoading === blockingTaskId || !blockReason.trim()}
+                  className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 transition-colors"
+                >
+                  {actionLoading === blockingTaskId ? 'Blocking...' : 'Block Task'}
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : null
+      })()}
     </div>
   )
 }
 
-function TaskRow({ task }: { task: TaskItem }) {
+function TaskRow({
+  task,
+  actionLoading,
+  onComplete,
+  onStartBlock,
+}: {
+  task: TaskItem
+  actionLoading: string | null
+  onComplete: (id: string) => void
+  onStartBlock: (id: string) => void
+}) {
+  const isActionable = task.status !== 'completed' && task.status !== 'blocked'
+  const isLoading = actionLoading === task.id
+
   return (
     <div className="flex items-center justify-between p-4">
       <div className="flex items-center gap-3">
         <div
-          className={`w-2 h-2 rounded-full ${
+          className={`w-2 h-2 rounded-full flex-shrink-0 ${
             task.status === 'completed'
               ? 'bg-green-500'
               : task.status === 'blocked'
@@ -610,12 +749,28 @@ function TaskRow({ task }: { task: TaskItem }) {
           </div>
         </div>
       </div>
-      <Link
-        href="/tasks"
-        className="text-sm text-blue-600 hover:text-blue-700"
-      >
-        View
-      </Link>
+      {isActionable ? (
+        <div className="flex items-center gap-2 ml-4 flex-shrink-0">
+          <button
+            onClick={() => onComplete(task.id)}
+            disabled={isLoading || actionLoading !== null}
+            className="px-3 py-1.5 text-xs font-medium bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 transition-colors"
+          >
+            {isLoading ? 'Completing...' : 'Complete'}
+          </button>
+          <button
+            onClick={() => onStartBlock(task.id)}
+            disabled={isLoading || actionLoading !== null}
+            className="px-3 py-1.5 text-xs font-medium border border-red-300 text-red-600 rounded-lg hover:bg-red-50 disabled:opacity-50 transition-colors"
+          >
+            Block
+          </button>
+        </div>
+      ) : (
+        <span className={`px-2 py-0.5 rounded text-xs font-medium ${taskStatusColors[task.status]}`}>
+          {task.status === 'completed' ? 'Done' : task.status.replace('_', ' ')}
+        </span>
+      )}
     </div>
   )
 }
