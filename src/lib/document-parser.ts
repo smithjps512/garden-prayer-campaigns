@@ -1,6 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk'
 import mammoth from 'mammoth'
-import pdf from 'pdf-parse'
 
 const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
@@ -95,8 +94,26 @@ async function parseFile(file: File): Promise<string> {
 }
 
 async function parsePdf(buffer: Buffer): Promise<string> {
-  const data = await pdf(buffer)
-  return data.text
+  // Use pdfjs-dist for server-side PDF text extraction
+  const pdfjsLib = await import('pdfjs-dist')
+
+  // Load the PDF document
+  const uint8Array = new Uint8Array(buffer)
+  const loadingTask = pdfjsLib.getDocument({ data: uint8Array })
+  const pdf = await loadingTask.promise
+
+  // Extract text from all pages
+  const textParts: string[] = []
+  for (let i = 1; i <= pdf.numPages; i++) {
+    const page = await pdf.getPage(i)
+    const textContent = await page.getTextContent()
+    const pageText = textContent.items
+      .map((item) => ('str' in item ? item.str : ''))
+      .join(' ')
+    textParts.push(pageText)
+  }
+
+  return textParts.join('\n\n')
 }
 
 async function parseDocx(buffer: Buffer): Promise<string> {
