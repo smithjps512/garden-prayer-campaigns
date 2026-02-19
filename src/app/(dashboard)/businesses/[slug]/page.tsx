@@ -337,7 +337,7 @@ export default async function BusinessDetailPage({ params }: PageProps) {
             <h3 className="text-sm font-semibold text-gray-900 uppercase tracking-wider mb-4">
               Meta Integration
             </h3>
-            {business.metaPageId || business.metaIgId || business.metaAdAccount ? (
+            {business.metaPageId || business.metaIgAccountId || business.metaAdAccount ? (
               <dl className="space-y-3">
                 {business.metaPageId && (
                   <div>
@@ -347,11 +347,11 @@ export default async function BusinessDetailPage({ params }: PageProps) {
                     </dd>
                   </div>
                 )}
-                {business.metaIgId && (
+                {business.metaIgAccountId && (
                   <div>
                     <dt className="text-sm text-gray-500">Instagram ID</dt>
                     <dd className="text-sm font-medium text-gray-900 mt-0.5">
-                      {business.metaIgId}
+                      {business.metaIgAccountId}
                     </dd>
                   </div>
                 )}
