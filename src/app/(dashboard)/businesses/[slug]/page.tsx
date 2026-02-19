@@ -1,7 +1,9 @@
+import { Suspense } from 'react'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import prisma from '@/lib/prisma'
 import DeleteBusinessButton from './DeleteBusinessButton'
+import MetaConnection from '@/components/MetaConnection'
 
 interface PageProps {
   params: Promise<{ slug: string }>
@@ -333,46 +335,22 @@ export default async function BusinessDetailPage({ params }: PageProps) {
           )}
 
           {/* Meta Integration */}
-          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-            <h3 className="text-sm font-semibold text-gray-900 uppercase tracking-wider mb-4">
-              Meta Integration
-            </h3>
-            {business.metaPageId || business.metaIgAccountId || business.metaAdAccount ? (
-              <dl className="space-y-3">
-                {business.metaPageId && (
-                  <div>
-                    <dt className="text-sm text-gray-500">Facebook Page ID</dt>
-                    <dd className="text-sm font-medium text-gray-900 mt-0.5">
-                      {business.metaPageId}
-                    </dd>
-                  </div>
-                )}
-                {business.metaIgAccountId && (
-                  <div>
-                    <dt className="text-sm text-gray-500">Instagram ID</dt>
-                    <dd className="text-sm font-medium text-gray-900 mt-0.5">
-                      {business.metaIgAccountId}
-                    </dd>
-                  </div>
-                )}
-                {business.metaAdAccount && (
-                  <div>
-                    <dt className="text-sm text-gray-500">Ad Account</dt>
-                    <dd className="text-sm font-medium text-gray-900 mt-0.5">
-                      {business.metaAdAccount}
-                    </dd>
-                  </div>
-                )}
-              </dl>
-            ) : (
-              <div className="text-center py-4">
-                <p className="text-sm text-gray-500">Not connected</p>
-                <button className="mt-2 text-sm text-blue-600 hover:text-blue-700 font-medium">
-                  Connect Meta Account
-                </button>
-              </div>
-            )}
-          </div>
+          <Suspense fallback={
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+              <h3 className="text-sm font-semibold text-gray-900 uppercase tracking-wider mb-4">Meta Integration</h3>
+              <p className="text-sm text-gray-500 text-center py-4">Loading...</p>
+            </div>
+          }>
+            <MetaConnection
+              businessId={business.id}
+              businessSlug={business.slug}
+              metaPageId={business.metaPageId}
+              metaPageName={business.metaPageName}
+              metaIgAccountId={business.metaIgAccountId}
+              metaConnectedAt={business.metaConnectedAt?.toISOString() ?? null}
+              metaTokenExpiresAt={business.metaTokenExpiresAt?.toISOString() ?? null}
+            />
+          </Suspense>
         </div>
       </div>
     </div>

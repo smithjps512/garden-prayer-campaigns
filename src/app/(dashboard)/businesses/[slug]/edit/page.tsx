@@ -12,6 +12,7 @@ interface Business {
   websiteUrl: string | null
   brandColors: Record<string, string> | null
   metaPageId: string | null
+  metaPageName: string | null
   metaIgAccountId: string | null
   metaAdAccount: string | null
   pixelId: string | null
@@ -26,6 +27,7 @@ export default function EditBusinessPage() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  const [metaStatus, setMetaStatus] = useState<{ pageName: string | null; igAccountId: string | null }>({ pageName: null, igAccountId: null })
 
   const [formData, setFormData] = useState({
     name: '',
@@ -35,8 +37,6 @@ export default function EditBusinessPage() {
     primaryColor: '#3B82F6',
     secondaryColor: '#1D4ED8',
     accentColor: '#F59E0B',
-    metaPageId: '',
-    metaIgAccountId: '',
     metaAdAccount: '',
     pixelId: '',
   })
@@ -63,10 +63,12 @@ export default function EditBusinessPage() {
           primaryColor: colors.primary || '#3B82F6',
           secondaryColor: colors.secondary || '#1D4ED8',
           accentColor: colors.accent || '#F59E0B',
-          metaPageId: business.metaPageId || '',
-          metaIgAccountId: business.metaIgAccountId || '',
           metaAdAccount: business.metaAdAccount || '',
           pixelId: business.pixelId || '',
+        })
+        setMetaStatus({
+          pageName: business.metaPageName || null,
+          igAccountId: business.metaIgAccountId || null,
         })
       } catch {
         setError('Failed to load business')
@@ -97,8 +99,6 @@ export default function EditBusinessPage() {
             secondary: formData.secondaryColor,
             accent: formData.accentColor,
           },
-          metaPageId: formData.metaPageId || null,
-          metaIgAccountId: formData.metaIgAccountId || null,
           metaAdAccount: formData.metaAdAccount || null,
           pixelId: formData.pixelId || null,
         }),
@@ -295,31 +295,40 @@ export default function EditBusinessPage() {
 
           <div className="border-t border-gray-200 pt-6">
             <h3 className="text-sm font-semibold text-gray-900 mb-4">Meta Integration</h3>
+
+            {/* Connection status (read-only, managed via OAuth on business detail page) */}
+            {metaStatus.pageName ? (
+              <div className="mb-4 bg-green-50 border border-green-200 rounded-lg px-4 py-3">
+                <div className="flex items-center">
+                  <span className="w-2 h-2 bg-green-500 rounded-full mr-2" />
+                  <span className="text-sm font-medium text-green-800">
+                    Connected to {metaStatus.pageName}
+                  </span>
+                </div>
+                {metaStatus.igAccountId && (
+                  <p className="text-xs text-green-700 mt-1 ml-4">
+                    Instagram: {metaStatus.igAccountId}
+                  </p>
+                )}
+                <p className="text-xs text-green-600 mt-1 ml-4">
+                  Manage connection from the{' '}
+                  <Link href={`/businesses/${slug}`} className="underline hover:text-green-800">
+                    business detail page
+                  </Link>
+                </p>
+              </div>
+            ) : (
+              <div className="mb-4 bg-gray-50 border border-gray-200 rounded-lg px-4 py-3">
+                <p className="text-sm text-gray-600">
+                  No Meta account connected.{' '}
+                  <Link href={`/businesses/${slug}`} className="text-blue-600 hover:text-blue-700 font-medium">
+                    Connect from the business detail page
+                  </Link>
+                </p>
+              </div>
+            )}
+
             <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label htmlFor="metaPageId" className="block text-sm font-medium text-gray-700">
-                  Facebook Page ID
-                </label>
-                <input
-                  type="text"
-                  id="metaPageId"
-                  value={formData.metaPageId}
-                  onChange={(e) => setFormData((prev) => ({ ...prev, metaPageId: e.target.value }))}
-                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                />
-              </div>
-              <div>
-                <label htmlFor="metaIgAccountId" className="block text-sm font-medium text-gray-700">
-                  Instagram ID
-                </label>
-                <input
-                  type="text"
-                  id="metaIgAccountId"
-                  value={formData.metaIgAccountId}
-                  onChange={(e) => setFormData((prev) => ({ ...prev, metaIgAccountId: e.target.value }))}
-                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                />
-              </div>
               <div>
                 <label htmlFor="metaAdAccount" className="block text-sm font-medium text-gray-700">
                   Ad Account ID
