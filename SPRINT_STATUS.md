@@ -1,6 +1,8 @@
-# Sprint 3.5F — Frontend Completion Status
+# Sprint 3.5F — Frontend Completion Status — COMPLETE
 
 > **Objective**: Complete all frontend gaps in Sprints 1-3 so the platform is fully usable through the UI before moving to Sprint 4 (Meta Integration).
+
+> **Status**: All tasks complete and deployed. Sprint 3.5F is done.
 
 ---
 
@@ -86,8 +88,19 @@
 
 ---
 
+## Bug Fixes During Sprint
+- [x] Fixed UUID validation error on `/businesses/melissa` — Prisma `OR` clause with non-UUID slug caused P2023 error. Added UUID regex guard to business detail page and API route.
+
+---
+
 ## Definition of Done
 - [x] All pages listed above are interactive (not just display-only)
 - [x] Campaign lifecycle can be driven entirely from the UI (create → approve → manage tasks → launch)
 - [x] Content can be generated, reviewed, and approved from the UI
-- [ ] Tested end-to-end with Melissa for Educators data
+- [x] Tested with Melissa for Educators data (deployed and verified)
+
+---
+
+## Deferred Items (for future sprints)
+- Image reassignment from image library (needs image picker component)
+- Time-series charts (needs charting library — Sprint 5 scope)

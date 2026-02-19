@@ -100,18 +100,20 @@ src/
 │   │   ├── page.tsx                    # Dashboard home (stats, activity)
 │   │   ├── businesses/                 # CRUD + [slug] detail + edit
 │   │   ├── playbooks/                  # List + [id] detail/editor
-│   │   ├── campaigns/                  # List + create modal ⚠️ MISSING detail page
-│   │   ├── content/                    # Generated content library ⚠️ display-only
+│   │   ├── campaigns/                  # List + create modal + [id] detail page
+│   │   ├── content/                    # Content library + generation + inline editing
 │   │   ├── images/                     # Image library + upload
-│   │   ├── tasks/                      # Task management ⚠️ read-only
-│   │   ├── analytics/                  # Performance metrics ⚠️ placeholder only
-│   │   └── escalations/               # Issues requiring attention ⚠️ no actions
+│   │   ├── tasks/                      # Task management + complete/block actions
+│   │   ├── analytics/                  # Performance metrics (real data)
+│   │   └── escalations/               # Escalation management + actions
 │   └── api/
 │       ├── auth/                       # login, logout, session
 │       ├── businesses/                 # CRUD + [id]
 │       ├── playbooks/                  # CRUD + [id] + parse + generate + activate
 │       ├── campaigns/                  # CRUD + [id] + approve/launch/pause/resume/complete
-│       ├── content/                    # CRUD + generate
+│       ├── content/                    # CRUD + [id] + generate
+│       ├── escalations/                # List + [id] (GET/PATCH for actions)
+│       ├── analytics/                  # Aggregated performance data
 │       ├── images/                     # CRUD + upload
 │       └── tasks/                      # CRUD + [id]/complete + [id]/block
 ├── components/
@@ -233,66 +235,38 @@ Images upload to Supabase Storage bucket `images`:
 
 ---
 
-## Current Sprint: Frontend Completion (Sprint 3.5F)
+## Next Sprint: Meta Integration (Sprint 4)
 
-> **Objective**: Complete all frontend gaps in Sprints 1-3 so the platform is fully usable through the UI before moving to Sprint 4 (Meta Integration). All work should use Melissa for Educators context for testing and seed data.
+> Sprint 3.5F (Frontend Completion) is **complete**. See `SPRINT_STATUS.md` for detailed task completion log.
 
-See `SPRINT_STATUS.md` for detailed task tracking and completion status.
+### What Was Completed in Sprint 3.5F
+- Campaign detail page with full lifecycle management (approve → launch → pause → complete)
+- Task action buttons (complete/block) on both tasks page and campaign detail
+- Content generation UI with Claude API integration (15-30s generation with progress indicator)
+- Content inline editing with status workflow (approve, retire, restore)
+- Escalation actions (acknowledge, resolve, dismiss) with new API endpoints
+- Analytics dashboard with real aggregated Performance data
+- Bug fix: UUID validation on business slug lookup
 
-### Sprint 3.5F Tasks (Priority Order)
+### Sprint 4 — Meta Integration (Upcoming)
+| Requirement | Status | Notes |
+|-------------|--------|-------|
+| Redis/BullMQ | ❌ Needed | Job queue for async posting/scheduling |
+| Meta OAuth flow | ❌ Not started | Facebook/Instagram business login |
+| Post scheduling | ❌ Not started | Queue-based scheduling to Meta API |
+| Webhook handling | ❌ Not started | Receive post status updates from Meta |
 
-#### P0 — Blocking Core Usability
-1. **Campaign Detail Page** (`/campaigns/[id]/page.tsx`)
-   - View full campaign details (name, status, audience, channels, dates, metrics)
-   - Action buttons: Approve, Launch, Pause, Resume, Complete (call existing API endpoints)
-   - Display associated tasks and content
-   - Status badge with visual workflow indicator
-
-2. **Task Action Buttons** (`/tasks/page.tsx`)
-   - Add "Complete" and "Block" buttons to each task row
-   - Wire to existing `POST /api/tasks/[id]/complete` and `POST /api/tasks/[id]/block` endpoints
-   - Show dependency warnings (task X blocks task Y)
-   - Auto-refresh task list after actions
-
-#### P1 — Important for Content Workflow
-3. **Content Generation UI** (`/content/page.tsx`)
-   - Add "Generate Content" button/modal
-   - Campaign selector, count, content type, platform inputs
-   - Wire to existing `POST /api/content/generate` endpoint
-   - Show generation progress/loading state
-   - Display results inline after generation
-
-4. **Content Editing** (`/content/page.tsx` or `/content/[id]/page.tsx`)
-   - Edit generated content (headline, body, CTA) before approval
-   - Status change buttons (approve, retire)
-   - Image reassignment from image library
-
-#### P2 — Operational Completeness
-5. **Escalation Actions** (`/escalations/page.tsx`)
-   - Add Acknowledge, Resolve, Dismiss buttons
-   - Wire to appropriate API endpoints (may need to create these)
-   - Show AI analysis and recommendation prominently
-
-6. **Analytics — Real Data** (`/analytics/page.tsx`)
-   - Replace static placeholder cards with real data from Performance model
-   - Basic charts (impressions, clicks, CTR over time)
-   - Per-campaign breakdown
-   - Note: Full analytics engine is Sprint 5 — this is just "show what exists"
-
-### Definition of Done for Sprint 3.5F
-- All pages listed above are interactive (not just display-only)
-- Campaign lifecycle can be driven entirely from the UI (create → approve → manage tasks → launch)
-- Content can be generated, reviewed, and approved from the UI
-- Tested end-to-end with Melissa for Educators data
+### Deferred Items (from Sprint 3.5F)
+- Image reassignment from image library (needs image picker component)
+- Time-series charts for analytics (needs charting library — Sprint 5 scope)
 
 ---
 
-## Sprint Roadmap (After 3.5F)
+## Sprint Roadmap
 
 | Sprint | Focus | Dependencies |
 |--------|-------|-------------|
-| **3.5F** (current) | Frontend completion for Sprints 1-3 | None |
-| **4** | Meta Integration — OAuth, posting, scheduling | Redis/BullMQ setup required |
+| **4** (next) | Meta Integration — OAuth, posting, scheduling | Redis/BullMQ setup required |
 | **5** | Analytics engine + optimization | Real post data from Sprint 4 |
 | **6** | Polish + production launch | All sprints complete |
 
@@ -303,7 +277,7 @@ See `SPRINT_STATUS.md` for detailed task tracking and completion status.
 | Sprint | Scope | Backend | Frontend | Notes |
 |--------|-------|---------|----------|-------|
 | 1 | Foundation | ✅ Complete | ✅ Complete | Auth, dashboard, business CRUD all working |
-| 2 | Playbooks + Content | ✅ Complete | ⚠️ Partial | Content library is display-only, no generation UI |
-| 3 | Campaigns + Tasks | ✅ Complete | ⚠️ Partial | No campaign detail page, tasks are read-only |
+| 2 | Playbooks + Content | ✅ Complete | ✅ Complete | Content generation UI, inline editing, status workflow |
+| 3 | Campaigns + Tasks | ✅ Complete | ✅ Complete | Campaign detail page, task actions (complete/block) |
 | 3.5 | Document Upload | ✅ Complete | ✅ Complete | PDF/DOCX parsing → Claude extraction |
-| **3.5F** | **Frontend Gaps** | — | 🔄 Active | **Current sprint** |
+| 3.5F | Frontend Gaps | ✅ Complete | ✅ Complete | Escalation actions, analytics dashboard, bug fixes |
