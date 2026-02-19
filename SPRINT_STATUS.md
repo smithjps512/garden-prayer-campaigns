@@ -1,93 +1,167 @@
-# Sprint 3.5F — Frontend Completion Status
+# Sprint Status — Garden Prayer Campaigns
 
-> **Objective**: Complete all frontend gaps in Sprints 1-3 so the platform is fully usable through the UI before moving to Sprint 4 (Meta Integration).
-
----
-
-## P0 — Blocking Core Usability
-
-### 1. Campaign Detail Page (`/campaigns/[id]/page.tsx`) — COMPLETE
-- [x] Create route and page component
-- [x] Fetch and display campaign details
-- [x] Status badge with color-coded workflow indicator
-- [x] Action buttons: Approve, Launch, Pause, Resume, Complete
-- [x] Wire actions to existing API endpoints
-- [x] Display associated tasks (human + system, separated)
-- [x] Display associated content pieces
-- [x] Display associated escalations
-- [x] Success/error feedback on actions
-- [x] Link from campaigns list page to detail page
-- [x] Breadcrumb navigation
-- [x] Tabbed interface (Overview, Tasks, Content, Escalations)
-
-### 2. Task Action Buttons (`/tasks/page.tsx`) — COMPLETE
-- [x] Add "Complete" button to each task row
-- [x] Add "Block" button with reason prompt (modal with required reason)
-- [x] Wire to `POST /api/tasks/[id]/complete` and `POST /api/tasks/[id]/block`
-- [x] Show dependency warnings (task X blocks task Y)
-- [x] Show blocked reason on blocked tasks
-- [x] Auto-refresh task list after actions
-- [x] Add task actions to campaign detail page Tasks tab
-- [x] Status filter dropdown
-- [x] Campaign links from task rows
-- [x] Converted from server component to client component for interactivity
+> **Last Updated**: February 19, 2026
+> **Active Sprint**: 4 — Meta Integration
+> **Priority Business**: Melissa for Educators
 
 ---
 
-## P1 — Important for Content Workflow
+## Sprint 4 — Meta Integration
 
-### 3. Content Generation UI (`/content/page.tsx`) — COMPLETE
-- [x] Add "Generate Content" button/modal
-- [x] Campaign selector, count (1-20), content type, platform inputs
-- [x] Wire to `POST /api/content/generate`
-- [x] Show generation progress with spinner and time estimate (15-30s)
-- [x] In-modal progress indicator during generation
-- [x] Success banner with generated count after completion
-- [x] Auto-filters to generated campaign's content after generation
-- [x] Filter by status and campaign
-- [x] Converted from server component to client component
+### Parallel Track (James — not Claude Code)
+- [ ] Create Meta App at developers.facebook.com (Business type)
+- [ ] Add products: Facebook Login, Pages API, Instagram Graph API
+- [ ] Request permissions: `pages_manage_posts`, `pages_read_engagement`, `instagram_basic`, `instagram_content_publish`
+- [ ] Create test Facebook Page for development
+- [ ] Link Instagram Business account to test page
+- [ ] Add `META_APP_ID`, `META_APP_SECRET` to `.env` and Vercel env vars
+- [ ] Generate `CRON_SECRET` and add to `.env` and Vercel env vars
+- [ ] Set OAuth redirect URI in Meta App settings: `https://garden-prayer-campaigns.vercel.app/api/meta/callback`
 
-### 4. Content Editing (`/content/page.tsx`) — COMPLETE
-- [x] Inline edit of headline, body, CTA text (separate EditForm component)
-- [x] Status change buttons: Approve, Unapprove, Retire, Restore
-- [x] Delete button (prevented for posted content)
-- [x] Created `/api/content/[id]` route (GET/PUT/DELETE)
-- [x] Activity logging for all content changes
-- [ ] Image reassignment from image library (deferred — needs image picker component)
+### Phase 4A: Meta OAuth + Connection Layer
+
+#### Schema Migration
+- [ ] Add Meta fields to Business model (`metaPageId`, `metaPageName`, `metaPageToken`, `metaIgAccountId`, `metaConnectedAt`, `metaTokenExpiresAt`)
+- [ ] Verify Post model has required fields (`platformPostId`, `postedAt`, `errorMessage`)
+- [ ] Add `PostStatus` enum if not present (draft, scheduled, posting, posted, failed)
+- [ ] Run migration (`db:migrate`) and push (`db:push`)
+
+#### Meta API Client (`src/lib/meta.ts`)
+- [ ] Create Meta Graph API wrapper
+- [ ] `exchangeCodeForToken()` — OAuth code → short-lived token
+- [ ] `getLongLivedToken()` — short-lived → long-lived (60 day)
+- [ ] `getPages()` — list user's Facebook Pages
+- [ ] `getIgAccount(pageId)` — get linked Instagram Business account
+- [ ] `refreshToken()` — refresh before expiry
+- [ ] Token encryption/decryption helpers
+- [ ] Typed error handling for Meta API errors
+
+#### OAuth Flow (API Routes)
+- [ ] `GET /api/meta/auth` — redirect to Meta OAuth dialog
+- [ ] `GET /api/meta/callback` — handle callback, exchange token, store on Business
+- [ ] `DELETE /api/meta/disconnect` — clear tokens from Business
+
+#### Meta Connection UI
+- [ ] "Connect to Meta" button on business detail/edit page
+- [ ] Page selector modal (pick which FB Page to connect)
+- [ ] Auto-detect Instagram Business account from connected page
+- [ ] Connection status display (page name, IG account, token expiry)
+- [ ] "Disconnect" button with confirmation
+
+### Phase 4B: Posting Engine
+
+#### Posting Service (`src/lib/meta.ts` — extend)
+- [ ] `postToFacebook(pageId, token, { message, link?, imageUrl? })`
+- [ ] `postToInstagram(igAccountId, token, { imageUrl, caption })` (two-step publish)
+- [ ] Platform-specific content formatting (FB text+link, IG image+caption)
+- [ ] Return `platformPostId` on success
+- [ ] Auto-create Escalation on failure
+
+#### Post Creation API
+- [ ] `POST /api/posts` — create post from approved Content
+- [ ] `GET /api/posts` — list posts with filters (campaign, status, platform)
+- [ ] `PATCH /api/posts/[id]` — retry failed, cancel scheduled
+- [ ] Content → Post field mapping (headline + body → message, CTA → link)
+- [ ] Validate Meta connection exists before allowing post
+- [ ] Immediate post flow: status `posting` → Meta API → `posted`/`failed`
+
+#### "Post Now" UI
+- [ ] "Post" button on approved content cards
+- [ ] Platform selector (Facebook, Instagram, or both)
+- [ ] Post preview (how it'll look on each platform)
+- [ ] Confirmation dialog with loading state
+- [ ] Success/failure feedback
+- [ ] Update content status after posting
+
+#### Post Status Tracking
+- [ ] Posts tab on campaign detail page (or standalone `/posts` page)
+- [ ] Status badges: scheduled, posting, posted, failed
+- [ ] Failed posts: show error message + "Retry" button
+- [ ] Link to live post on platform
+- [ ] Post count on campaign cards
+
+### Phase 4C: Scheduling + Queue
+
+#### Vercel Cron Setup
+- [ ] Create `vercel.json` with cron configuration
+- [ ] `/api/cron/process-posts` — every 5 minutes
+- [ ] `/api/cron/poll-metrics` — every 30 minutes
+- [ ] `CRON_SECRET` validation middleware
+
+#### Post Processing Cron (`/api/cron/process-posts`)
+- [ ] Query: `scheduledFor <= now AND status = 'scheduled'` (limit 10)
+- [ ] Process each: `posting` → Meta API → `posted`/`failed`
+- [ ] Activity logging for each processed post
+- [ ] Handle partial failures (don't stop batch on single failure)
+- [ ] Return processing summary in response
+
+#### Schedule UI
+- [ ] "Schedule" option alongside "Post Now"
+- [ ] Date/time picker for scheduled posts
+- [ ] Scheduled posts queue view (list with cancel/reschedule)
+- [ ] Visual indicator of next scheduled post on dashboard
+
+#### UTM Parameter Generation (`src/lib/utm.ts`)
+- [ ] UTM generation utility function
+- [ ] Pattern: `utm_source={platform}&utm_medium=social&utm_campaign={slug}&utm_content={id}`
+- [ ] Auto-apply to all outbound links in posts
+- [ ] Store UTM string on Post model
+
+### Phase 4D: Metrics + Tracking
+
+#### Metrics Polling Cron (`/api/cron/poll-metrics`)
+- [ ] Query posted posts from last 30 days
+- [ ] Call Meta API for: impressions, reach, clicks, reactions, comments, shares
+- [ ] Upsert into Performance model
+- [ ] Exponential backoff on rate limits
+- [ ] Activity logging
+
+#### Conversion Webhook
+- [ ] `POST /api/webhooks/conversion` — receive conversion events
+- [ ] Parse UTM params → map to Campaign and Content
+- [ ] Create Conversion record (click, signup, trial, purchase)
+- [ ] Payload validation (no auth, but structure check)
+
+#### Analytics Dashboard Update
+- [ ] Verify real post data displays correctly in existing analytics page
+- [ ] Add post-level drill-down (which post drove which metrics)
+- [ ] Add "Last Updated" timestamp from most recent metrics poll
+- [ ] Test with real data from Meta test page
 
 ---
 
-## P2 — Operational Completeness
+## Definition of Done — Sprint 4
 
-### 5. Escalation Actions (`/escalations/page.tsx`) — COMPLETE
-- [x] Add Acknowledge, Resolve, Dismiss buttons
-- [x] Created `/api/escalations` route (GET list with status/severity filters)
-- [x] Created `/api/escalations/[id]` route (GET single, PATCH for status changes)
-- [x] Status transition validation (open → acknowledged → resolved/dismissed)
-- [x] Response modal for resolve/dismiss with optional human response
-- [x] Show AI analysis and recommendation prominently
-- [x] Show human response when provided
-- [x] Status and severity filter dropdowns
-- [x] Campaign links from escalation cards
-- [x] Activity logging for all escalation actions
-- [x] Converted from server component to client component
-
-### 6. Analytics — Real Data (`/analytics/page.tsx`) — COMPLETE
-- [x] Created `/api/analytics` route (aggregated Performance data)
-- [x] Replace static placeholder cards with real data from Performance model
-- [x] Overview stats: impressions, clicks, CTR, conversions, spend, ROAS
-- [x] Engagement stats: likes, comments, shares, saves, signups, revenue
-- [x] Per-campaign breakdown table with links
-- [x] Campaign filter dropdown
-- [x] Pipeline summary (content count, post count, performance records)
-- [x] Graceful empty state when no performance data exists
-- [x] Converted from static component to client component
-- [ ] Time-series charts (deferred — needs charting library, full implementation in Sprint 5)
+- [ ] Meta connection can be established and disconnected from business settings
+- [ ] A Melissa campaign can be posted to test Facebook Page from the UI
+- [ ] Posts can be scheduled and are processed automatically by cron
+- [ ] Engagement metrics are pulled from Meta and visible in analytics
+- [ ] UTM parameters are auto-generated on all outbound links
+- [ ] Conversion webhook endpoint is functional
+- [ ] Error states create escalations automatically
+- [ ] Tested end-to-end with Melissa for Educators on Meta test page
 
 ---
 
-## Definition of Done
-- [x] All pages listed above are interactive (not just display-only)
-- [x] Campaign lifecycle can be driven entirely from the UI (create → approve → manage tasks → launch)
-- [x] Content can be generated, reviewed, and approved from the UI
-- [ ] Tested end-to-end with Melissa for Educators data
+## Completed Sprints
+
+### Sprint 3.5F: Frontend Completion — ✅ COMPLETE (February 19, 2026)
+
+| Task | Status |
+|------|--------|
+| P0: Campaign Detail Page | ✅ Complete — full detail view with contextual action buttons, status workflow, tabbed content |
+| P0: Task Action Buttons | ✅ Complete — complete/block actions on both tasks page and campaign detail, block creates escalation |
+| P1: Content Generation UI | ✅ Complete — generate modal with campaign selector, loading states, auto-filter to generated content |
+| P1: Content Editing | ✅ Complete — inline editing, status actions (approve/unapprove/retire/restore), new GET/PUT/DELETE API |
+| P2: Escalation Actions | ✅ Complete — acknowledge/resolve/dismiss with response modal, new API endpoints, filters |
+| P2: Analytics Real Data | ✅ Complete — real Performance model data, per-campaign breakdown, pipeline summary |
+
+**Deferred from 3.5F:**
+- Image reassignment UI (API ready, needs reusable image browser component) → Sprint 5/6
+- Time-series charts → Sprint 5
+
+### Earlier Sprints — All ✅ COMPLETE
+- Sprint 1: Foundation (auth, dashboard, business CRUD)
+- Sprint 2: Playbooks + Content (AI generation, document parsing, content engine)
+- Sprint 3: Campaigns + Tasks (lifecycle API, task management, auto-task generation)
+- Sprint 3.5: Document Upload (PDF/DOCX parsing → Claude extraction)
