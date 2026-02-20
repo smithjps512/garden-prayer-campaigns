@@ -67,6 +67,9 @@ export default function ContentPage() {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [actionLoading, setActionLoading] = useState<string | null>(null)
 
+  // Posting state
+  const [postingContentId, setPostingContentId] = useState<string | null>(null)
+
   const fetchContent = useCallback(async () => {
     try {
       const params = new URLSearchParams()
@@ -205,6 +208,32 @@ export default function ContentPage() {
     }
   }
 
+  async function handlePost(contentId: string, platform: 'facebook' | 'instagram') {
+    setActionLoading(contentId)
+    setError(null)
+    try {
+      const res = await fetch('/api/posts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contentId, platform }),
+      })
+      const data = await res.json()
+      if (data.success) {
+        setPostingContentId(null)
+        await fetchContent()
+        return { success: true }
+      } else {
+        setError(data.error || `Failed to post to ${platform}`)
+        return { success: false, error: data.error }
+      }
+    } catch {
+      setError(`Failed to post to ${platform}`)
+      return { success: false, error: `Failed to post to ${platform}` }
+    } finally {
+      setActionLoading(null)
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -337,6 +366,7 @@ export default function ContentPage() {
               onSaveEdit={(updates) => handleSaveEdit(item.id, updates)}
               onStatusChange={(status) => handleStatusChange(item.id, status)}
               onDelete={() => handleDelete(item.id)}
+              onPost={() => setPostingContentId(item.id)}
             />
           ))}
         </div>
@@ -351,6 +381,19 @@ export default function ContentPage() {
           onClose={() => setShowGenerateModal(false)}
         />
       )}
+
+      {/* Post Now Modal */}
+      {postingContentId && (() => {
+        const item = content.find((c) => c.id === postingContentId)
+        return item ? (
+          <PostNowModal
+            content={item}
+            isPosting={actionLoading === postingContentId}
+            onPost={(platform) => handlePost(postingContentId, platform)}
+            onClose={() => setPostingContentId(null)}
+          />
+        ) : null
+      })()}
     </div>
   )
 }
@@ -366,6 +409,7 @@ function ContentCard({
   onSaveEdit,
   onStatusChange,
   onDelete,
+  onPost,
 }: {
   item: ContentItem
   isEditing: boolean
@@ -375,6 +419,7 @@ function ContentCard({
   onSaveEdit: (updates: { headline?: string; body?: string; ctaText?: string }) => void
   onStatusChange: (status: string) => void
   onDelete: () => void
+  onPost: () => void
 }) {
   const isLoading = actionLoading === item.id
   const canEdit = item.status === 'generated' || item.status === 'approved'
@@ -470,13 +515,22 @@ function ContentCard({
                 </button>
               )}
               {item.status === 'approved' && (
-                <button
-                  onClick={() => onStatusChange('generated')}
-                  disabled={isLoading || actionLoading !== null}
-                  className="px-3 py-1.5 text-xs font-medium border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 disabled:opacity-50 transition-colors"
-                >
-                  Unapprove
-                </button>
+                <>
+                  <button
+                    onClick={onPost}
+                    disabled={isLoading || actionLoading !== null}
+                    className="px-3 py-1.5 text-xs font-medium bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 transition-colors"
+                  >
+                    Post
+                  </button>
+                  <button
+                    onClick={() => onStatusChange('generated')}
+                    disabled={isLoading || actionLoading !== null}
+                    className="px-3 py-1.5 text-xs font-medium border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 disabled:opacity-50 transition-colors"
+                  >
+                    Unapprove
+                  </button>
+                </>
               )}
               {(item.status === 'generated' || item.status === 'approved') && (
                 <button
@@ -757,6 +811,184 @@ function GenerateModal({
             className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
           >
             {generating ? 'Generating...' : 'Generate Content'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// --- Post Now Modal ---
+
+function PostNowModal({
+  content,
+  isPosting,
+  onPost,
+  onClose,
+}: {
+  content: ContentItem
+  isPosting: boolean
+  onPost: (platform: 'facebook' | 'instagram') => Promise<{ success: boolean; error?: string }>
+  onClose: () => void
+}) {
+  const [selectedPlatform, setSelectedPlatform] = useState<'facebook' | 'instagram' | null>(null)
+  const [postResult, setPostResult] = useState<{ success: boolean; error?: string } | null>(null)
+
+  async function handleConfirmPost() {
+    if (!selectedPlatform) return
+    setPostResult(null)
+    const result = await onPost(selectedPlatform)
+    setPostResult(result)
+    if (result.success) {
+      // Auto-close after a brief delay on success
+      setTimeout(() => onClose(), 1500)
+    }
+  }
+
+  // Build preview message
+  const previewParts: string[] = []
+  if (content.headline) previewParts.push(content.headline)
+  if (content.body) previewParts.push(content.body)
+  if (content.ctaText) previewParts.push(content.ctaText)
+  const previewMessage = previewParts.join('\n\n')
+
+  const hasImage = !!content.image
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <div className="bg-white rounded-lg shadow-xl max-w-lg w-full m-4">
+        <div className="p-6 border-b border-gray-200">
+          <div className="flex items-center justify-between">
+            <h2 className="text-xl font-semibold text-gray-900">Post to Social Media</h2>
+            <button
+              onClick={onClose}
+              disabled={isPosting}
+              className="text-gray-400 hover:text-gray-600 disabled:opacity-50"
+            >
+              <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+          <p className="text-sm text-gray-500 mt-1">
+            Post this content to Facebook or Instagram
+          </p>
+        </div>
+
+        <div className="p-6 space-y-5">
+          {/* Post result feedback */}
+          {postResult && (
+            <div className={`px-4 py-3 rounded-lg text-sm ${
+              postResult.success
+                ? 'bg-green-50 border border-green-200 text-green-700'
+                : 'bg-red-50 border border-red-200 text-red-700'
+            }`}>
+              {postResult.success
+                ? 'Posted successfully!'
+                : `Failed: ${postResult.error || 'Unknown error'}`}
+            </div>
+          )}
+
+          {/* Platform selector */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Select Platform</label>
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={() => setSelectedPlatform('facebook')}
+                disabled={isPosting}
+                className={`flex-1 px-4 py-3 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 border-2 ${
+                  selectedPlatform === 'facebook'
+                    ? 'border-blue-600 bg-blue-50 text-blue-700'
+                    : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                <div className="text-center">
+                  <div className="text-lg mb-1">f</div>
+                  <div>Facebook</div>
+                </div>
+              </button>
+              <button
+                type="button"
+                onClick={() => setSelectedPlatform('instagram')}
+                disabled={isPosting || !hasImage}
+                className={`flex-1 px-4 py-3 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 border-2 ${
+                  selectedPlatform === 'instagram'
+                    ? 'border-purple-600 bg-purple-50 text-purple-700'
+                    : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                <div className="text-center">
+                  <div className="text-lg mb-1">ig</div>
+                  <div>Instagram</div>
+                  {!hasImage && (
+                    <div className="text-xs text-red-500 mt-1">Requires image</div>
+                  )}
+                </div>
+              </button>
+            </div>
+          </div>
+
+          {/* Post preview */}
+          {selectedPlatform && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Preview ({selectedPlatform === 'facebook' ? 'Facebook' : 'Instagram'})
+              </label>
+              <div className="border border-gray-200 rounded-lg p-4 bg-gray-50">
+                {content.image && (
+                  <div className="mb-3 flex justify-center">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={content.image.thumbnailUrl || content.image.storageUrl}
+                      alt=""
+                      className="rounded-lg max-h-40 object-cover"
+                    />
+                  </div>
+                )}
+                <p className="text-sm text-gray-800 whitespace-pre-line">{previewMessage}</p>
+                {content.ctaUrl && selectedPlatform === 'facebook' && (
+                  <p className="text-xs text-blue-600 mt-2 truncate">{content.ctaUrl}</p>
+                )}
+                {content.ctaUrl && selectedPlatform === 'instagram' && (
+                  <p className="text-xs text-blue-600 mt-2 truncate">{content.ctaUrl}</p>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Posting indicator */}
+          {isPosting && (
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+              <div className="flex items-center gap-3">
+                <div className="animate-spin rounded-full h-5 w-5 border-2 border-blue-600 border-t-transparent"></div>
+                <div>
+                  <p className="text-sm font-medium text-blue-800">
+                    Posting to {selectedPlatform}...
+                  </p>
+                  <p className="text-xs text-blue-600 mt-0.5">
+                    Sending content to Meta API. This may take a few seconds.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div className="p-6 border-t border-gray-200 flex justify-end gap-3">
+          <button
+            onClick={onClose}
+            disabled={isPosting}
+            className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 disabled:opacity-50 transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleConfirmPost}
+            disabled={isPosting || !selectedPlatform || postResult?.success === true}
+            className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 transition-colors"
+          >
+            {isPosting ? 'Posting...' : `Post to ${selectedPlatform ? (selectedPlatform === 'facebook' ? 'Facebook' : 'Instagram') : '...'}`}
           </button>
         </div>
       </div>

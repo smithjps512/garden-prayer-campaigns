@@ -1,6 +1,6 @@
 # Sprint Status — Garden Prayer Campaigns
 
-> **Last Updated**: February 19, 2026
+> **Last Updated**: February 20, 2026
 > **Active Sprint**: 4 — Meta Integration
 > **Priority Business**: Melissa for Educators
 
@@ -48,37 +48,37 @@
 - [ ] Connection status display (page name, IG account, token expiry)
 - [ ] "Disconnect" button with confirmation
 
-### Phase 4B: Posting Engine
+### Phase 4B: Posting Engine — ✅ COMPLETE (February 20, 2026)
 
 #### Posting Service (`src/lib/meta.ts` — extend)
-- [ ] `postToFacebook(pageId, token, { message, link?, imageUrl? })`
-- [ ] `postToInstagram(igAccountId, token, { imageUrl, caption })` (two-step publish)
-- [ ] Platform-specific content formatting (FB text+link, IG image+caption)
-- [ ] Return `platformPostId` on success
-- [ ] Auto-create Escalation on failure
+- [x] `postToFacebook(pageId, token, { message, link?, imageUrl? })`
+- [x] `postToInstagram(igAccountId, token, { imageUrl, caption })` (two-step publish)
+- [x] Platform-specific content formatting (FB text+link, IG image+caption)
+- [x] Return `platformPostId` on success
+- [x] Auto-create Escalation on failure
 
 #### Post Creation API
-- [ ] `POST /api/posts` — create post from approved Content
-- [ ] `GET /api/posts` — list posts with filters (campaign, status, platform)
-- [ ] `PATCH /api/posts/[id]` — retry failed, cancel scheduled
-- [ ] Content → Post field mapping (headline + body → message, CTA → link)
-- [ ] Validate Meta connection exists before allowing post
-- [ ] Immediate post flow: status `posting` → Meta API → `posted`/`failed`
+- [x] `POST /api/posts` — create post from approved Content
+- [x] `GET /api/posts` — list posts with filters (campaign, status, platform)
+- [x] `PATCH /api/posts/[id]` — retry failed, cancel scheduled
+- [x] Content → Post field mapping (headline + body → message, CTA → link)
+- [x] Validate Meta connection exists before allowing post
+- [x] Immediate post flow: status `posting` → Meta API → `posted`/`failed`
 
 #### "Post Now" UI
-- [ ] "Post" button on approved content cards
-- [ ] Platform selector (Facebook, Instagram, or both)
-- [ ] Post preview (how it'll look on each platform)
-- [ ] Confirmation dialog with loading state
-- [ ] Success/failure feedback
-- [ ] Update content status after posting
+- [x] "Post" button on approved content cards
+- [x] Platform selector (Facebook, Instagram, or both)
+- [x] Post preview (how it'll look on each platform)
+- [x] Confirmation dialog with loading state
+- [x] Success/failure feedback
+- [x] Update content status after posting
 
 #### Post Status Tracking
-- [ ] Posts tab on campaign detail page (or standalone `/posts` page)
-- [ ] Status badges: scheduled, posting, posted, failed
-- [ ] Failed posts: show error message + "Retry" button
-- [ ] Link to live post on platform
-- [ ] Post count on campaign cards
+- [x] Posts tab on campaign detail page (or standalone `/posts` page)
+- [x] Status badges: scheduled, posting, posted, failed
+- [x] Failed posts: show error message + "Retry" button
+- [x] Link to live post on platform
+- [x] Post count on campaign cards
 
 ### Phase 4C: Scheduling + Queue
 
