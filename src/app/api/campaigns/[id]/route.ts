@@ -108,6 +108,7 @@ export async function PUT(request: NextRequest, context: RouteContext) {
       successMetrics?: Record<string, unknown>
       performanceThresholds?: Record<string, unknown>
       autoOptimize?: boolean
+      autoMode?: string
     }>(request)
 
     // Check campaign exists
@@ -120,9 +121,20 @@ export async function PUT(request: NextRequest, context: RouteContext) {
       return errorResponse('Campaign not found', 404)
     }
 
-    // Don't allow edits to live campaigns (except pause)
-    if (existing.status === 'live') {
+    // autoMode can be changed at any time (even on live campaigns)
+    const isAutoModeOnlyChange = Object.keys(body).length === 1 && body.autoMode !== undefined
+
+    // Don't allow edits to live campaigns (except autoMode and pause)
+    if (existing.status === 'live' && !isAutoModeOnlyChange) {
       return errorResponse('Cannot edit a live campaign. Pause it first.', 400)
+    }
+
+    // Validate autoMode value
+    if (body.autoMode !== undefined) {
+      const validModes = ['off', 'generate-only', 'generate-and-post']
+      if (!validModes.includes(body.autoMode)) {
+        return errorResponse(`Invalid autoMode. Must be one of: ${validModes.join(', ')}`, 400)
+      }
     }
 
     const updateData: Prisma.CampaignUpdateInput = {}
@@ -137,6 +149,7 @@ export async function PUT(request: NextRequest, context: RouteContext) {
     if (body.successMetrics !== undefined) updateData.successMetrics = body.successMetrics as Prisma.InputJsonValue
     if (body.performanceThresholds !== undefined) updateData.performanceThresholds = body.performanceThresholds as Prisma.InputJsonValue
     if (body.autoOptimize !== undefined) updateData.autoOptimize = body.autoOptimize
+    if (body.autoMode !== undefined) updateData.autoMode = body.autoMode
 
     const campaign = await prisma.campaign.update({
       where: { id },

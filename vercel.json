@@ -1,6 +1,8 @@
 {
   "crons": [
     { "path": "/api/cron/process-posts", "schedule": "*/5 * * * *" },
-    { "path": "/api/cron/poll-metrics", "schedule": "*/30 * * * *" }
+    { "path": "/api/cron/poll-metrics", "schedule": "*/30 * * * *" },
+    { "path": "/api/cron/generate-content", "schedule": "0 6 * * *" },
+    { "path": "/api/cron/analyze-performance", "schedule": "0 8 * * 1" }
   ]
 }

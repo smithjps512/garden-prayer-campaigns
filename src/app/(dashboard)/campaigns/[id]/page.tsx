@@ -77,6 +77,7 @@ interface Campaign {
   id: string
   name: string
   status: string
+  autoMode: string
   targetAudience: string | null
   targetMarkets: string[] | null
   channels: string[] | null
@@ -285,8 +286,14 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
                 {campaign.targetAudience}
               </span>
             )}
-            {campaign.autoOptimize && (
-              <span className="text-xs text-gray-500">Auto-optimize on</span>
+            {campaign.autoMode && campaign.autoMode !== 'off' && (
+              <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                campaign.autoMode === 'generate-and-post'
+                  ? 'bg-green-100 text-green-800'
+                  : 'bg-blue-100 text-blue-800'
+              }`}>
+                {campaign.autoMode === 'generate-only' ? 'Auto-Generate' : 'Full Auto'}
+              </span>
             )}
           </div>
         </div>
@@ -353,6 +360,13 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
       {/* Status workflow indicator */}
       <StatusWorkflow currentStatus={campaign.status} />
 
+      {/* Auto-Mode Toggle */}
+      <AutoModeToggle
+        campaignId={campaign.id}
+        currentMode={campaign.autoMode || 'off'}
+        onModeChange={fetchCampaign}
+      />
+
       {/* Tabs */}
       <div className="border-b border-gray-200">
         <nav className="-mb-px flex space-x-8">
@@ -385,6 +399,149 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
       {activeTab === 'posts' && <PostsTab posts={posts} loading={postsLoading} onRefresh={fetchPosts} />}
       {activeTab === 'escalations' && <EscalationsTab escalations={campaign.escalations} />}
     </div>
+  )
+}
+
+// --- Auto-Mode Toggle ---
+
+const AUTO_MODES = [
+  {
+    value: 'off',
+    label: 'Off',
+    description: 'Manual content generation and posting',
+    color: 'border-gray-300 bg-white text-gray-700',
+    activeColor: 'border-gray-500 bg-gray-50 text-gray-900 ring-2 ring-gray-300',
+  },
+  {
+    value: 'generate-only',
+    label: 'Generate Only',
+    description: 'Auto-generates content to keep your pipeline full. You review and post.',
+    color: 'border-blue-200 bg-white text-blue-700',
+    activeColor: 'border-blue-500 bg-blue-50 text-blue-900 ring-2 ring-blue-300',
+  },
+  {
+    value: 'generate-and-post',
+    label: 'Generate & Post',
+    description: 'Fully autonomous — generates, approves, schedules, and posts content.',
+    color: 'border-green-200 bg-white text-green-700',
+    activeColor: 'border-green-500 bg-green-50 text-green-900 ring-2 ring-green-300',
+  },
+]
+
+function AutoModeToggle({
+  campaignId,
+  currentMode,
+  onModeChange,
+}: {
+  campaignId: string
+  currentMode: string
+  onModeChange: () => Promise<void>
+}) {
+  const [loading, setLoading] = useState(false)
+  const [showConfirm, setShowConfirm] = useState(false)
+  const [pendingMode, setPendingMode] = useState<string | null>(null)
+
+  async function setMode(mode: string) {
+    // Require confirmation for generate-and-post
+    if (mode === 'generate-and-post' && currentMode !== 'generate-and-post') {
+      setPendingMode(mode)
+      setShowConfirm(true)
+      return
+    }
+
+    await applyMode(mode)
+  }
+
+  async function applyMode(mode: string) {
+    setLoading(true)
+    setShowConfirm(false)
+    try {
+      const res = await fetch(`/api/campaigns/${campaignId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ autoMode: mode }),
+      })
+      const data = await res.json()
+      if (data.success) {
+        await onModeChange()
+      }
+    } catch {
+      // Handle silently
+    } finally {
+      setLoading(false)
+      setPendingMode(null)
+    }
+  }
+
+  return (
+    <>
+      <div className="bg-white rounded-lg border border-gray-200 p-4">
+        <div className="flex items-center justify-between mb-3">
+          <div>
+            <h3 className="text-sm font-semibold text-gray-900">Automation Mode</h3>
+            <p className="text-xs text-gray-500 mt-0.5">Control how content is generated and posted</p>
+          </div>
+          {loading && (
+            <div className="animate-spin rounded-full h-4 w-4 border-2 border-blue-600 border-t-transparent"></div>
+          )}
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          {AUTO_MODES.map((mode) => {
+            const isActive = currentMode === mode.value
+            return (
+              <button
+                key={mode.value}
+                onClick={() => setMode(mode.value)}
+                disabled={loading}
+                className={`p-3 rounded-lg border text-left transition-all disabled:opacity-50 ${
+                  isActive ? mode.activeColor : `${mode.color} hover:shadow-sm`
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  <div className={`w-2 h-2 rounded-full ${isActive ? 'bg-current' : 'bg-gray-300'}`} />
+                  <span className="text-sm font-medium">{mode.label}</span>
+                </div>
+                <p className="text-xs mt-1 opacity-75">{mode.description}</p>
+              </button>
+            )
+          })}
+        </div>
+      </div>
+
+      {/* Confirmation dialog for generate-and-post */}
+      {showConfirm && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full m-4">
+            <div className="p-6 border-b border-gray-200">
+              <h2 className="text-lg font-semibold text-gray-900">Enable Full Automation?</h2>
+            </div>
+            <div className="p-6">
+              <p className="text-sm text-gray-600">
+                In <strong>Generate &amp; Post</strong> mode, content will be automatically generated,
+                approved, scheduled, and posted to your connected social accounts without manual review.
+              </p>
+              <p className="text-sm text-orange-600 mt-3 font-medium">
+                Content will be posted without your review. You can switch back to manual at any time.
+              </p>
+            </div>
+            <div className="p-6 border-t border-gray-200 flex justify-end gap-3">
+              <button
+                onClick={() => { setShowConfirm(false); setPendingMode(null) }}
+                className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => pendingMode && applyMode(pendingMode)}
+                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+              >
+                Enable Full Auto
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   )
 }
 
