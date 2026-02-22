@@ -94,6 +94,7 @@ model Campaign {
   playbookId            String         @map("playbook_id")
   name                  String
   status                CampaignStatus @default(draft)
+  autoMode              String         @default("off") @map("auto_mode") // 'off', 'generate-only', 'generate-and-post'
   targetAudience        String?        @map("target_audience") // Audience segment from playbook
   targetMarkets         Json?          @map("target_markets") // Geographic targets
   channels              Json?          // ["facebook", "instagram"]
@@ -119,6 +120,7 @@ model Campaign {
   tasks                 Task[]
   escalations           Escalation[]
   activityLogs          ActivityLog[]
+  recommendations       Recommendation[]
 
   @@map("campaigns")
 }
@@ -220,8 +222,11 @@ model Content {
   platformVariants   Json?         @map("platform_variants")
   hookSource         String?       @map("hook_source")
   audienceSegment    String?       @map("audience_segment")
+  pillar             String?       // 'time-back', 'bigger-paycheck', 'not-chatgpt'
+  archetype          String?       // 'pain-point', 'stat-proof', 'contrast', 'aspiration', 'myth-buster', 'teacher-reality', 'individualization', 'outcome'
   generationMetadata Json?         @map("generation_metadata")
   performanceScore   Decimal?      @map("performance_score") @db.Decimal(5, 2)
+  scoredAt           DateTime?     @map("scored_at")
   createdAt          DateTime      @default(now()) @map("created_at")
   updatedAt          DateTime      @updatedAt @map("updated_at")
 
@@ -473,4 +478,25 @@ model User {
   updatedAt    DateTime @updatedAt @map("updated_at")
 
   @@map("users")
+}
+
+// ============================================
+// RECOMMENDATIONS
+// ============================================
+model Recommendation {
+  id          String   @id @default(cuid())
+  campaignId  String   @map("campaign_id")
+  type        String   // 'amplify', 'retire', 'test', 'iterate'
+  title       String
+  reasoning   String   @db.Text
+  actionData  Json     @map("action_data")
+  status      String   @default("pending") // 'pending', 'accepted', 'dismissed', 'executed'
+  outcome     String?
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  campaign    Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  @@map("recommendations")
 }

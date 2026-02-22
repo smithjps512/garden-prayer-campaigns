@@ -8,6 +8,7 @@ import {
   getIgMediaInsights,
   MetaError,
 } from '@/lib/meta'
+import { scoreContent, autoRetireUnderperformers } from '@/lib/scoring'
 
 /**
  * GET /api/cron/poll-metrics
@@ -178,6 +179,43 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    // Recalculate performance scores for affected content
+    const updatedContentIds = new Set<string>()
+    for (const post of posts) {
+      const result = results.find((r) => r.postId === post.id)
+      if (result?.status === 'updated') {
+        updatedContentIds.add(post.contentId)
+      }
+    }
+
+    let scored = 0
+    for (const contentId of updatedContentIds) {
+      try {
+        await scoreContent(contentId)
+        scored++
+      } catch {
+        // Non-critical: scoring failure shouldn't fail the cron
+      }
+    }
+
+    // Auto-retire underperforming content (check affected campaigns)
+    const affectedCampaignIds = new Set<string>()
+    for (const post of posts) {
+      if (updatedContentIds.has(post.contentId)) {
+        affectedCampaignIds.add(post.content.campaign.id)
+      }
+    }
+
+    let retired = 0
+    for (const campaignId of affectedCampaignIds) {
+      try {
+        const result = await autoRetireUnderperformers(campaignId)
+        retired += result.retired
+      } catch {
+        // Non-critical
+      }
+    }
+
     // Log activity summary
     const updated = results.filter((r) => r.status === 'updated').length
     const failed = results.filter((r) => r.status === 'failed').length
@@ -192,6 +230,8 @@ export async function GET(request: NextRequest) {
             polled: posts.length,
             updated,
             failed,
+            scored,
+            retired,
           } as Prisma.InputJsonValue,
         },
       })
@@ -201,6 +241,8 @@ export async function GET(request: NextRequest) {
       polled: posts.length,
       updated,
       failed,
+      scored,
+      retired,
       results,
     })
   } catch (error) {
