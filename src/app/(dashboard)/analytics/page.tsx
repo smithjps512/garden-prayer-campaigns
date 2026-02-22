@@ -38,20 +38,41 @@ interface CampaignBreakdown {
   roas: string
 }
 
+interface PostBreakdown {
+  id: string
+  platform: string
+  platformPostId: string | null
+  postedAt: string | null
+  headline: string | null
+  campaignName: string
+  impressions: number
+  reach: number
+  clicks: number
+  likes: number
+  comments: number
+  shares: number
+  ctr: string
+  engagementRate: string
+  lastUpdated: string | null
+}
+
 interface AnalyticsData {
   overview: AnalyticsOverview
   campaigns: CampaignBreakdown[]
+  posts: PostBreakdown[]
   counts: {
     content: number
     posts: number
     performanceRecords: number
   }
+  lastUpdated: string | null
 }
 
 export default function AnalyticsPage() {
   const [data, setData] = useState<AnalyticsData | null>(null)
   const [loading, setLoading] = useState(true)
   const [selectedCampaign, setSelectedCampaign] = useState<string>('')
+  const [showPostDrilldown, setShowPostDrilldown] = useState(false)
 
   const fetchAnalytics = useCallback(async () => {
     try {
@@ -93,6 +114,12 @@ export default function AnalyticsPage() {
     completed: 'bg-blue-100 text-blue-700',
   }
 
+  const platformColors: Record<string, string> = {
+    facebook: 'bg-blue-100 text-blue-700',
+    instagram: 'bg-purple-100 text-purple-700',
+    twitter: 'bg-sky-100 text-sky-700',
+  }
+
   if (loading) {
     return (
       <div className="space-y-6">
@@ -121,7 +148,14 @@ export default function AnalyticsPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Analytics</h1>
-          <p className="text-gray-500 mt-1">Track performance across all your campaigns</p>
+          <div className="flex items-center gap-3 mt-1">
+            <p className="text-gray-500">Track performance across all your campaigns</p>
+            {data?.lastUpdated && (
+              <span className="text-xs text-gray-400 bg-gray-100 px-2 py-0.5 rounded">
+                Last updated: {new Date(data.lastUpdated).toLocaleString()}
+              </span>
+            )}
+          </div>
         </div>
         {data && data.campaigns.length > 0 && (
           <select
@@ -316,6 +350,79 @@ export default function AnalyticsPage() {
               </tbody>
             </table>
           </div>
+        </div>
+      )}
+
+      {/* Post-Level Drill-Down */}
+      {data && data.posts && data.posts.length > 0 && (
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+          <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+            <h2 className="text-lg font-semibold text-gray-900">Post Performance</h2>
+            <button
+              onClick={() => setShowPostDrilldown(!showPostDrilldown)}
+              className="text-sm text-blue-600 hover:text-blue-700"
+            >
+              {showPostDrilldown ? 'Hide' : 'Show'} ({data.posts.length} posts)
+            </button>
+          </div>
+          {showPostDrilldown && (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-gray-50 border-b border-gray-200">
+                  <tr>
+                    <th className="text-left px-6 py-3 font-medium text-gray-500">Post</th>
+                    <th className="text-left px-4 py-3 font-medium text-gray-500">Platform</th>
+                    <th className="text-left px-4 py-3 font-medium text-gray-500">Campaign</th>
+                    <th className="text-right px-4 py-3 font-medium text-gray-500">Impressions</th>
+                    <th className="text-right px-4 py-3 font-medium text-gray-500">Clicks</th>
+                    <th className="text-right px-4 py-3 font-medium text-gray-500">Likes</th>
+                    <th className="text-right px-4 py-3 font-medium text-gray-500">Comments</th>
+                    <th className="text-right px-4 py-3 font-medium text-gray-500">Shares</th>
+                    <th className="text-right px-6 py-3 font-medium text-gray-500">Posted</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {data.posts.map((post) => (
+                    <tr key={post.id} className="hover:bg-gray-50">
+                      <td className="px-6 py-3">
+                        <span className="text-gray-900 font-medium truncate block max-w-xs">
+                          {post.headline || 'Untitled post'}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3">
+                        <span
+                          className={`px-2 py-0.5 rounded-full text-xs font-medium capitalize ${platformColors[post.platform] || 'bg-gray-100 text-gray-700'}`}
+                        >
+                          {post.platform}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-gray-600 text-xs">{post.campaignName}</td>
+                      <td className="px-4 py-3 text-right text-gray-700">
+                        {formatNumber(post.impressions)}
+                      </td>
+                      <td className="px-4 py-3 text-right text-gray-700">
+                        {formatNumber(post.clicks)}
+                      </td>
+                      <td className="px-4 py-3 text-right text-gray-700">
+                        {formatNumber(post.likes)}
+                      </td>
+                      <td className="px-4 py-3 text-right text-gray-700">
+                        {formatNumber(post.comments)}
+                      </td>
+                      <td className="px-4 py-3 text-right text-gray-700">
+                        {formatNumber(post.shares)}
+                      </td>
+                      <td className="px-6 py-3 text-right text-gray-500 text-xs">
+                        {post.postedAt
+                          ? new Date(post.postedAt).toLocaleDateString()
+                          : '--'}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       )}
 

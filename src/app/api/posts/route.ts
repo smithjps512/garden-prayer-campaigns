@@ -11,6 +11,7 @@ import {
   getEscalationSeverity,
   getEscalationType,
 } from '@/lib/meta'
+import { generateUTMParams, appendUTMToUrl, slugify } from '@/lib/utm'
 
 // GET /api/posts - List posts with optional filters
 export async function GET(request: NextRequest) {
@@ -147,7 +148,19 @@ export async function POST(request: NextRequest) {
       return errorResponse('Instagram posts require an image. Assign an image to this content first.')
     }
 
-    // Build the post message from content fields
+    // Generate UTM parameters
+    const campaignSlug = slugify(content.campaign.name)
+    const utmParams = generateUTMParams({
+      platform: body.platform,
+      campaignSlug,
+      contentId: body.contentId,
+    })
+
+    // Build the post message from content fields, with UTM-tagged CTA URL
+    const ctaUrl = content.ctaUrl
+      ? appendUTMToUrl(content.ctaUrl, utmParams)
+      : undefined
+
     const messageParts: string[] = []
     if (content.headline) messageParts.push(content.headline)
     if (content.body) messageParts.push(content.body)
@@ -170,6 +183,7 @@ export async function POST(request: NextRequest) {
           platform: body.platform,
           status: 'scheduled',
           scheduledFor: scheduledDate,
+          targeting: utmParams as unknown as Prisma.InputJsonValue,
         },
         include: {
           content: {
@@ -215,6 +229,7 @@ export async function POST(request: NextRequest) {
         contentId: body.contentId,
         platform: body.platform,
         status: 'posting',
+        targeting: utmParams as unknown as Prisma.InputJsonValue,
       },
     })
 
@@ -237,14 +252,14 @@ export async function POST(request: NextRequest) {
       if (body.platform === 'facebook') {
         const result = await postToFacebook(business.metaPageId!, pageToken, {
           message,
-          link: content.ctaUrl || undefined,
+          link: ctaUrl,
           imageUrl: content.image?.storageUrl || undefined,
         })
         platformPostId = result.id
       } else {
         // Instagram
-        const caption = content.ctaUrl
-          ? `${message}\n\n${content.ctaUrl}`
+        const caption = ctaUrl
+          ? `${message}\n\n${ctaUrl}`
           : message
         const result = await postToInstagram(business.metaIgAccountId!, pageToken, {
           imageUrl: content.image!.storageUrl,
