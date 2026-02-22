@@ -165,3 +165,108 @@
 - Sprint 2: Playbooks + Content (AI generation, document parsing, content engine)
 - Sprint 3: Campaigns + Tasks (lifecycle API, task management, auto-task generation)
 - Sprint 3.5: Document Upload (PDF/DOCX parsing → Claude extraction)
+# Sprint Status — Garden Prayer Campaigns
+
+## Current Sprint: Sprint 5 — Intelligence + Automation Engine
+
+**Started**: February 2026
+**Objective**: Build the intelligence layer — performance scoring, auto-generation pipeline, AI recommendations, and enhanced analytics.
+
+---
+
+### Phase 5A: Playbook Enrichment ✅ COMPLETE
+
+- [x] Core Value Pillars (Time Back, Bigger Paycheck, Not ChatGPT)
+- [x] Cross-Pillar Theme (Individualization)
+- [x] Brand Voice (personality, tone attributes, always/never rules, sentence style)
+- [x] Audience-Specific Angles (TIA Seekers, Time-Starved, True Believers, Tech-Hesitant)
+- [x] Content Variety Framework (8 archetypes)
+- [x] Message Boundaries (claims, compliance, tone guardrails)
+- [x] Founder Story
+- [x] Playbook entered into Campaign Engine
+
+### Phase 5B: Performance Scoring + Message Intelligence
+
+- [ ] Schema changes (Content: pillar, archetype, performanceScore, scoredAt; new Recommendation model; Campaign: autoMode)
+- [ ] SQL migration script for Supabase
+- [ ] Performance scorer (`src/lib/scoring.ts`) with configurable weights
+- [ ] Content auto-tagging on generation (pillar, archetype)
+- [ ] Backfill tagging for existing content
+- [ ] Score calculation endpoint (`POST /api/content/score`)
+- [ ] Message attribution API (`GET /api/analytics/message-intelligence`)
+- [ ] Integrate scoring into metrics polling cron (recalculate on new data)
+
+### Phase 5C: Auto-Generation Pipeline
+
+- [ ] Campaign autoMode field + UI toggle on campaign detail page
+- [ ] Confirmation dialog for generate-and-post mode
+- [ ] Visual auto-mode indicator on campaign cards and detail
+- [ ] Content pipeline cron (`GET /api/cron/generate-content`)
+- [ ] Add cron to `vercel.json`
+- [ ] Variety enforcement logic (track recent pillars/archetypes/audiences, bias toward underrepresented)
+- [ ] Playbook context injection into Claude API generation prompts
+- [ ] Auto-approve + auto-schedule logic for generate-and-post campaigns
+- [ ] Cadence configuration (posts per day per platform)
+- [ ] Variety sequencing (no back-to-back same pillar/archetype)
+- [ ] ActivityLog entries for all auto-generation events
+
+### Phase 5D: AI Recommendation Engine
+
+- [ ] Performance analysis cron (`GET /api/cron/analyze-performance`)
+- [ ] Add cron to `vercel.json` (weekly)
+- [ ] Claude API prompt for structured recommendations (amplify/retire/test/iterate)
+- [ ] Recommendation model and API (`GET /api/recommendations`, `PATCH /api/recommendations/[id]`)
+- [ ] Recommendation dashboard page (`/recommendations`)
+- [ ] Accept action triggers (generate content, retire content, adjust scheduling)
+- [ ] Auto-retire underperformers (threshold + minimum impressions check)
+- [ ] Escalation creation on auto-retire
+- [ ] Sidebar navigation link for recommendations
+
+### Phase 5E: Time-Series Charts + Enhanced Analytics
+
+- [ ] Install/verify recharts availability
+- [ ] Time-series charts (impressions, clicks, CTR, conversions — daily/weekly toggle)
+- [ ] Per-pillar performance trend lines
+- [ ] Per-audience-segment trend lines
+- [ ] Campaign comparison overlay
+- [ ] Message effectiveness heatmap (audience × pillar matrix)
+- [ ] Archetype performance breakdown chart
+- [ ] Content funnel visualization (impressions → clicks → conversions)
+
+---
+
+## Completed Sprints
+
+### Sprint 4 — Meta Integration ✅ COMPLETE
+
+- [x] 4A: Meta OAuth + Connection Layer (schema, API client, OAuth flow, connection UI)
+- [x] 4B: Posting Engine (post API, PostNowModal, post dashboard, auto-escalation)
+- [x] 4C: Scheduling + Queue (Vercel Cron, process-posts cron, schedule UI, UTM generation)
+- [x] 4D: Metrics + Tracking (poll-metrics cron, conversion webhook, analytics update)
+- [x] Live Facebook posting validated
+
+### Sprint 3.5F — Frontend Completion ✅ COMPLETE
+
+- [x] Campaign detail page with contextual actions and status workflow
+- [x] Task actions (complete/block) on tasks page and campaign detail
+- [x] Content generation UI with campaign selector and auto-filtering
+- [x] Content inline editing with status actions and new API endpoints
+- [x] Escalation actions (acknowledge/resolve/dismiss) with API endpoints
+- [x] Analytics dashboard with real Performance data and per-campaign breakdown
+
+### Sprint 3.5 — Document Upload ✅ COMPLETE
+### Sprint 3 — Campaigns + Tasks ✅ COMPLETE
+### Sprint 2 — Playbooks + Content ✅ COMPLETE
+### Sprint 1 — Foundation ✅ COMPLETE
+
+---
+
+## Deferred Items
+
+| Item | Deferred From | Target Sprint |
+|------|--------------|---------------|
+| Image picker component | Sprint 3.5F | Sprint 6 |
+| Paid ads (Meta Ads API) | Sprint 5 | Sprint 6 |
+| Lookalike audience targeting | Sprint 5 | Sprint 6 |
+| Instagram linking | Sprint 4 | Sprint 6 |
+| CI/CD + testing infrastructure | — | Sprint 6 |
