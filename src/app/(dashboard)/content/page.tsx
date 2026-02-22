@@ -208,14 +208,17 @@ export default function ContentPage() {
     }
   }
 
-  async function handlePost(contentId: string, platform: 'facebook' | 'instagram') {
+  async function handlePost(contentId: string, platform: 'facebook' | 'instagram', scheduledFor?: string) {
     setActionLoading(contentId)
     setError(null)
     try {
+      const payload: Record<string, string> = { contentId, platform }
+      if (scheduledFor) payload.scheduledFor = scheduledFor
+
       const res = await fetch('/api/posts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ contentId, platform }),
+        body: JSON.stringify(payload),
       })
       const data = await res.json()
       if (data.success) {
@@ -389,7 +392,7 @@ export default function ContentPage() {
           <PostNowModal
             content={item}
             isPosting={actionLoading === postingContentId}
-            onPost={(platform) => handlePost(postingContentId, platform)}
+            onPost={(platform, scheduledFor) => handlePost(postingContentId, platform, scheduledFor)}
             onClose={() => setPostingContentId(null)}
           />
         ) : null
@@ -818,7 +821,7 @@ function GenerateModal({
   )
 }
 
-// --- Post Now Modal ---
+// --- Post Now / Schedule Modal ---
 
 function PostNowModal({
   content,
@@ -828,19 +831,31 @@ function PostNowModal({
 }: {
   content: ContentItem
   isPosting: boolean
-  onPost: (platform: 'facebook' | 'instagram') => Promise<{ success: boolean; error?: string }>
+  onPost: (platform: 'facebook' | 'instagram', scheduledFor?: string) => Promise<{ success: boolean; error?: string }>
   onClose: () => void
 }) {
   const [selectedPlatform, setSelectedPlatform] = useState<'facebook' | 'instagram' | null>(null)
   const [postResult, setPostResult] = useState<{ success: boolean; error?: string } | null>(null)
+  const [mode, setMode] = useState<'now' | 'schedule'>('now')
+  const [scheduledDate, setScheduledDate] = useState('')
+  const [scheduledTime, setScheduledTime] = useState('')
 
   async function handleConfirmPost() {
     if (!selectedPlatform) return
     setPostResult(null)
-    const result = await onPost(selectedPlatform)
+
+    let scheduledFor: string | undefined
+    if (mode === 'schedule') {
+      if (!scheduledDate || !scheduledTime) {
+        setPostResult({ success: false, error: 'Please select both date and time' })
+        return
+      }
+      scheduledFor = new Date(`${scheduledDate}T${scheduledTime}`).toISOString()
+    }
+
+    const result = await onPost(selectedPlatform, scheduledFor)
     setPostResult(result)
     if (result.success) {
-      // Auto-close after a brief delay on success
       setTimeout(() => onClose(), 1500)
     }
   }
@@ -854,9 +869,14 @@ function PostNowModal({
 
   const hasImage = !!content.image
 
+  // Min datetime for scheduling (now + 5 minutes)
+  const now = new Date()
+  now.setMinutes(now.getMinutes() + 5)
+  const minDate = now.toISOString().split('T')[0]
+
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg shadow-xl max-w-lg w-full m-4">
+      <div className="bg-white rounded-lg shadow-xl max-w-lg w-full m-4 max-h-[90vh] overflow-y-auto">
         <div className="p-6 border-b border-gray-200">
           <div className="flex items-center justify-between">
             <h2 className="text-xl font-semibold text-gray-900">Post to Social Media</h2>
@@ -871,7 +891,7 @@ function PostNowModal({
             </button>
           </div>
           <p className="text-sm text-gray-500 mt-1">
-            Post this content to Facebook or Instagram
+            Post now or schedule for later
           </p>
         </div>
 
@@ -884,8 +904,71 @@ function PostNowModal({
                 : 'bg-red-50 border border-red-200 text-red-700'
             }`}>
               {postResult.success
-                ? 'Posted successfully!'
+                ? mode === 'schedule' ? 'Post scheduled successfully!' : 'Posted successfully!'
                 : `Failed: ${postResult.error || 'Unknown error'}`}
+            </div>
+          )}
+
+          {/* Post Now vs Schedule toggle */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">When to post</label>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setMode('now')}
+                disabled={isPosting}
+                className={`flex-1 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 border-2 ${
+                  mode === 'now'
+                    ? 'border-green-600 bg-green-50 text-green-700'
+                    : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                Post Now
+              </button>
+              <button
+                type="button"
+                onClick={() => setMode('schedule')}
+                disabled={isPosting}
+                className={`flex-1 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 border-2 ${
+                  mode === 'schedule'
+                    ? 'border-purple-600 bg-purple-50 text-purple-700'
+                    : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                Schedule
+              </button>
+            </div>
+          </div>
+
+          {/* Schedule date/time picker */}
+          {mode === 'schedule' && (
+            <div className="bg-purple-50 border border-purple-200 rounded-lg p-4 space-y-3">
+              <div className="flex gap-3">
+                <div className="flex-1">
+                  <label className="block text-xs font-medium text-purple-700 mb-1">Date</label>
+                  <input
+                    type="date"
+                    value={scheduledDate}
+                    onChange={(e) => setScheduledDate(e.target.value)}
+                    min={minDate}
+                    disabled={isPosting}
+                    className="w-full px-3 py-2 border border-purple-300 rounded-lg text-sm focus:ring-2 focus:ring-purple-500 focus:border-transparent disabled:opacity-50"
+                  />
+                </div>
+                <div className="flex-1">
+                  <label className="block text-xs font-medium text-purple-700 mb-1">Time</label>
+                  <input
+                    type="time"
+                    value={scheduledTime}
+                    onChange={(e) => setScheduledTime(e.target.value)}
+                    disabled={isPosting}
+                    className="w-full px-3 py-2 border border-purple-300 rounded-lg text-sm focus:ring-2 focus:ring-purple-500 focus:border-transparent disabled:opacity-50"
+                  />
+                </div>
+              </div>
+              <p className="text-xs text-purple-600">
+                Post will be processed automatically by the scheduling system within 5 minutes of the selected time.
+              </p>
             </div>
           )}
 
@@ -947,10 +1030,7 @@ function PostNowModal({
                   </div>
                 )}
                 <p className="text-sm text-gray-800 whitespace-pre-line">{previewMessage}</p>
-                {content.ctaUrl && selectedPlatform === 'facebook' && (
-                  <p className="text-xs text-blue-600 mt-2 truncate">{content.ctaUrl}</p>
-                )}
-                {content.ctaUrl && selectedPlatform === 'instagram' && (
+                {content.ctaUrl && (
                   <p className="text-xs text-blue-600 mt-2 truncate">{content.ctaUrl}</p>
                 )}
               </div>
@@ -964,10 +1044,12 @@ function PostNowModal({
                 <div className="animate-spin rounded-full h-5 w-5 border-2 border-blue-600 border-t-transparent"></div>
                 <div>
                   <p className="text-sm font-medium text-blue-800">
-                    Posting to {selectedPlatform}...
+                    {mode === 'schedule' ? 'Scheduling post...' : `Posting to ${selectedPlatform}...`}
                   </p>
                   <p className="text-xs text-blue-600 mt-0.5">
-                    Sending content to Meta API. This may take a few seconds.
+                    {mode === 'schedule'
+                      ? 'Creating scheduled post entry.'
+                      : 'Sending content to Meta API.'}
                   </p>
                 </div>
               </div>
@@ -986,9 +1068,17 @@ function PostNowModal({
           <button
             onClick={handleConfirmPost}
             disabled={isPosting || !selectedPlatform || postResult?.success === true}
-            className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 transition-colors"
+            className={`px-4 py-2 text-white rounded-lg disabled:opacity-50 transition-colors ${
+              mode === 'schedule'
+                ? 'bg-purple-600 hover:bg-purple-700'
+                : 'bg-green-600 hover:bg-green-700'
+            }`}
           >
-            {isPosting ? 'Posting...' : `Post to ${selectedPlatform ? (selectedPlatform === 'facebook' ? 'Facebook' : 'Instagram') : '...'}`}
+            {isPosting
+              ? mode === 'schedule' ? 'Scheduling...' : 'Posting...'
+              : mode === 'schedule'
+                ? `Schedule for ${selectedPlatform ? (selectedPlatform === 'facebook' ? 'Facebook' : 'Instagram') : '...'}`
+                : `Post to ${selectedPlatform ? (selectedPlatform === 'facebook' ? 'Facebook' : 'Instagram') : '...'}`}
           </button>
         </div>
       </div>
