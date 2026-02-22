@@ -103,6 +103,8 @@ export async function POST(request: NextRequest) {
             ctaText: variation.ctaText,
             hookSource: variation.hookSource,
             audienceSegment: variation.audienceSegment,
+            pillar: variation.pillar || null,
+            archetype: variation.archetype || null,
             platformVariants: {
               [variation.platform]: {
                 headline: variation.headline,

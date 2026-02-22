@@ -19,6 +19,7 @@ interface Campaign {
   id: string
   name: string
   status: string
+  autoMode: string
   targetAudience: string | null
   budgetDaily: number | null
   budgetTotal: number | null
@@ -176,6 +177,15 @@ export default function CampaignsPage() {
                   >
                     {campaign.status}
                   </span>
+                  {campaign.autoMode && campaign.autoMode !== 'off' && (
+                    <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                      campaign.autoMode === 'generate-and-post'
+                        ? 'bg-green-100 text-green-700'
+                        : 'bg-blue-100 text-blue-700'
+                    }`}>
+                      {campaign.autoMode === 'generate-only' ? 'Auto-Gen' : 'Full Auto'}
+                    </span>
+                  )}
                 </div>
                 <p className="text-sm text-gray-500 mt-1">
                   {campaign.playbook.business.name} • {campaign.playbook.name}

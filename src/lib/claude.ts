@@ -37,6 +37,8 @@ export interface ContentVariation {
   hookSource: string
   audienceSegment: string
   platform: 'facebook' | 'instagram'
+  pillar?: string
+  archetype?: string
   reasoning?: string
 }
 
@@ -95,6 +97,10 @@ For Instagram:
 - Body: 125-150 characters for feed, can use more in caption
 - More emoji-friendly, casual tone
 
+For each variation, classify it with:
+- pillar: The core value pillar it maps to. One of: "time-back", "bigger-paycheck", "not-chatgpt". Pick the closest match based on the primary message angle.
+- archetype: The content archetype. One of: "pain-point", "stat-proof", "contrast", "aspiration", "myth-buster", "teacher-reality", "individualization", "outcome". Pick based on the rhetorical approach used.
+
 Respond in JSON format:
 {
   "variations": [
@@ -105,6 +111,8 @@ Respond in JSON format:
       "hookSource": "ID of the hook used",
       "audienceSegment": "Target audience name",
       "platform": "facebook or instagram",
+      "pillar": "time-back",
+      "archetype": "pain-point",
       "reasoning": "Brief explanation of why this variation works"
     }
   ]
@@ -234,6 +242,141 @@ Respond in JSON format with this structure:
   "hooks": [...],
   "keyMessages": {...},
   "objectionHandlers": {...}
+}`
+
+  const message = await anthropic.messages.create({
+    model: 'claude-sonnet-4-20250514',
+    max_tokens: 4096,
+    messages: [{ role: 'user', content: prompt }],
+  })
+
+  const textContent = message.content.find((c) => c.type === 'text')
+  if (!textContent || textContent.type !== 'text') {
+    throw new Error('No text response from Claude')
+  }
+
+  const jsonMatch = textContent.text.match(/\{[\s\S]*\}/)
+  if (!jsonMatch) {
+    throw new Error('Could not parse JSON from Claude response')
+  }
+
+  return JSON.parse(jsonMatch[0])
+}
+
+// =============================================================================
+// Content Classification (Backfill Tags)
+// =============================================================================
+
+/**
+ * Classify existing content into pillar and archetype categories.
+ * Used for backfilling untagged content.
+ */
+export async function classifyContentTags(
+  headline: string,
+  body: string
+): Promise<{ pillar: string; archetype: string }> {
+  const prompt = `Classify the following social media content for an EdTech product (Melissa for Educators — AI teaching assistant).
+
+CONTENT:
+Headline: ${headline}
+Body: ${body}
+
+Classify into exactly one pillar and one archetype.
+
+PILLARS (pick the primary value angle):
+- "time-back" — saves teachers time, reduces workload, automates tedious tasks
+- "bigger-paycheck" — increases earning potential (TIA/merit pay), improves evaluation scores
+- "not-chatgpt" — built specifically for educators, not generic AI, understands teaching context
+
+ARCHETYPES (pick the rhetorical approach):
+- "pain-point" — highlights a specific frustration teachers face
+- "stat-proof" — leads with data, statistics, or measurable outcomes
+- "contrast" — before/after, with/without comparison
+- "aspiration" — paints a picture of the desired future state
+- "myth-buster" — challenges a common misconception
+- "teacher-reality" — day-in-the-life, relatable daily scenarios
+- "individualization" — focuses on personalized/differentiated instruction
+- "outcome" — focuses on student or teacher results/achievements
+
+Respond in JSON only:
+{"pillar": "...", "archetype": "..."}`
+
+  const message = await anthropic.messages.create({
+    model: 'claude-sonnet-4-20250514',
+    max_tokens: 256,
+    messages: [{ role: 'user', content: prompt }],
+  })
+
+  const textContent = message.content.find((c) => c.type === 'text')
+  if (!textContent || textContent.type !== 'text') {
+    throw new Error('No text response from Claude')
+  }
+
+  const jsonMatch = textContent.text.match(/\{[\s\S]*\}/)
+  if (!jsonMatch) {
+    throw new Error('Could not parse JSON from Claude response')
+  }
+
+  return JSON.parse(jsonMatch[0])
+}
+
+// =============================================================================
+// AI Recommendation Generation
+// =============================================================================
+
+export interface RecommendationInput {
+  businessName: string
+  messageMatrix: {
+    byPillar: Array<{ pillar: string; avgScore: number; contentCount: number }>
+    byArchetype: Array<{ archetype: string; avgScore: number; contentCount: number }>
+    byAudience: Array<{ audience: string; avgScore: number; contentCount: number }>
+    topCombinations: Array<{ pillar: string; archetype: string; audience: string; avgScore: number }>
+    bottomCombinations: Array<{ pillar: string; archetype: string; audience: string; avgScore: number }>
+    untestedCombinations: Array<{ pillar: string; archetype: string; audience: string }>
+  }
+  recentGenerationHistory: Array<{ pillar: string; archetype: string; audience: string; createdAt: string }>
+}
+
+export interface RecommendationOutput {
+  amplify: Array<{ title: string; reasoning: string; pillar: string; archetype: string; audience: string }>
+  retire: Array<{ title: string; reasoning: string; contentIds?: string[] }>
+  test: Array<{ title: string; reasoning: string; pillar: string; archetype: string; audience: string }>
+  iterate: Array<{ title: string; reasoning: string; pillar: string; archetype: string; audience: string; winningAngle: string }>
+}
+
+export async function generateRecommendations(
+  input: RecommendationInput
+): Promise<RecommendationOutput> {
+  const prompt = `You are a marketing strategist analyzing content performance data for "${input.businessName}" and generating actionable recommendations.
+
+MESSAGE EFFECTIVENESS DATA:
+${JSON.stringify(input.messageMatrix, null, 2)}
+
+RECENT GENERATION HISTORY (last 20 content pieces):
+${JSON.stringify(input.recentGenerationHistory, null, 2)}
+
+Based on this data, generate recommendations in 4 categories:
+
+1. AMPLIFY: High-performing content combinations to generate more variations of. Pick the best pillar/archetype/audience combos and recommend creating more.
+
+2. RETIRE: Underperforming content to stop using. Identify weak patterns (not individual pieces). If specific low scorers stand out, reference the pattern.
+
+3. TEST: Untested pillar/archetype/audience combinations that are worth trying. Prioritize combinations adjacent to known winners.
+
+4. ITERATE: Top performers to explore further variations of. Identify the winning angle and suggest how to riff on it.
+
+Rules:
+- Generate 1-3 recommendations per category (fewer is fine if data is sparse)
+- Be specific about which pillar/archetype/audience to target
+- Provide clear reasoning based on the data
+- If there isn't enough data for a category, return an empty array for it
+
+Respond in JSON:
+{
+  "amplify": [{"title": "...", "reasoning": "...", "pillar": "...", "archetype": "...", "audience": "..."}],
+  "retire": [{"title": "...", "reasoning": "..."}],
+  "test": [{"title": "...", "reasoning": "...", "pillar": "...", "archetype": "...", "audience": "..."}],
+  "iterate": [{"title": "...", "reasoning": "...", "pillar": "...", "archetype": "...", "audience": "...", "winningAngle": "..."}]
 }`
 
   const message = await anthropic.messages.create({
