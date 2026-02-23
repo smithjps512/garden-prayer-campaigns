@@ -51,17 +51,24 @@ export async function GET(request: NextRequest) {
 
   try {
     // Step 1: Exchange code for short-lived token
+    console.log('[Meta Callback] Step 1: Exchanging code for short-lived token...')
     const shortLivedToken = await exchangeCodeForToken(code)
+    console.log('[Meta Callback] Step 1 complete: got short-lived token, expires_in:', shortLivedToken.expires_in)
 
     // Step 2: Exchange for long-lived token (~60 days)
+    console.log('[Meta Callback] Step 2: Exchanging for long-lived token...')
     const longLivedToken = await getLongLivedToken(shortLivedToken.access_token)
+    console.log('[Meta Callback] Step 2 complete: got long-lived token, expires_in:', longLivedToken.expires_in)
 
     // Step 3: Get the user's Facebook pages
+    console.log('[Meta Callback] Step 3: Fetching pages with long-lived user token...')
     const pages = await getPages(longLivedToken.access_token)
+    console.log('[Meta Callback] Step 3 complete: found', pages.length, 'pages')
 
     if (pages.length === 0) {
+      console.error('[Meta Callback] No pages returned. Token may lack pages_show_list permission. Check token debug info above.')
       return NextResponse.redirect(
-        `${appUrl}/businesses/${business.slug}?meta_error=${encodeURIComponent('No Facebook Pages found. Make sure your account manages at least one Page.')}`
+        `${appUrl}/businesses/${business.slug}?meta_error=${encodeURIComponent('No Facebook Pages found. Make sure your account manages at least one Page and that you granted all requested permissions.')}`
       )
     }
 

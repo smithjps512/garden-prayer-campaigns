@@ -18,8 +18,9 @@ const ENCRYPTION_KEY = crypto
   .digest()
 
 const OAUTH_SCOPES = [
+  'pages_show_list',
   'pages_manage_posts',
-  'pages_read_engagement',
+  'pages_read_user_content',
   'instagram_basic',
   'instagram_content_publish',
 ].join(',')
@@ -153,6 +154,8 @@ export function getOAuthUrl(state: string): string {
     scope: OAUTH_SCOPES,
     response_type: 'code',
     state,
+    // Force re-prompt for all permissions on reconnect
+    auth_type: 'rerequest',
   })
   return `https://www.facebook.com/v21.0/dialog/oauth?${params.toString()}`
 }
@@ -211,10 +214,36 @@ export async function getPageAccessToken(
  * List Facebook Pages the user has access to manage.
  */
 export async function getPages(userToken: string): Promise<MetaPage[]> {
+  // First, verify the token is valid and check granted permissions
+  try {
+    const debugRes = await metaFetch(
+      `/debug_token?input_token=${userToken}&access_token=${META_APP_ID}|${META_APP_SECRET}`
+    )
+    const debugData = debugRes as {
+      data?: { scopes?: string[]; type?: string; app_id?: string; is_valid?: boolean }
+    }
+    console.log('[Meta] Token debug info:', JSON.stringify({
+      is_valid: debugData.data?.is_valid,
+      type: debugData.data?.type,
+      scopes: debugData.data?.scopes,
+      app_id: debugData.data?.app_id,
+    }))
+  } catch (debugErr) {
+    console.warn('[Meta] Token debug check failed (non-fatal):', debugErr)
+  }
+
   const res = await metaFetch(
     `/me/accounts?fields=id,name,access_token,category,tasks&access_token=${userToken}`
   )
-  return (res as { data: MetaPage[] }).data || []
+
+  const pagesResponse = res as { data?: MetaPage[]; paging?: unknown }
+  console.log('[Meta] /me/accounts response:', JSON.stringify({
+    pageCount: pagesResponse.data?.length ?? 0,
+    pageNames: pagesResponse.data?.map((p) => p.name) ?? [],
+    hasPaging: !!pagesResponse.paging,
+  }))
+
+  return pagesResponse.data || []
 }
 
 /**
