@@ -9,10 +9,18 @@ interface Business {
   slug: string
 }
 
+interface AudienceSegment {
+  name: string
+  description: string
+  painPoints: string[]
+  desires: string[]
+}
+
 interface Playbook {
   id: string
   name: string
   business: Business
+  audiences?: AudienceSegment[]
 }
 
 interface Campaign {
@@ -239,9 +247,48 @@ function CreateCampaignModal({
   const [error, setError] = useState('')
   const [playbookId, setPlaybookId] = useState(playbooks[0]?.id || '')
   const [name, setName] = useState('')
-  const [targetAudience, setTargetAudience] = useState('')
+  const [selectedAudiences, setSelectedAudiences] = useState<string[]>([])
+  const [audienceSegments, setAudienceSegments] = useState<AudienceSegment[]>([])
+  const [loadingAudiences, setLoadingAudiences] = useState(false)
   const [budgetDaily, setBudgetDaily] = useState('')
   const [channels, setChannels] = useState<string[]>(['facebook', 'instagram'])
+
+  // Fetch audience segments when playbook changes
+  useEffect(() => {
+    if (!playbookId) {
+      setAudienceSegments([])
+      setSelectedAudiences([])
+      return
+    }
+
+    async function fetchAudiences() {
+      setLoadingAudiences(true)
+      try {
+        const res = await fetch(`/api/playbooks/${playbookId}`)
+        const data = await res.json()
+        if (data.success && data.data.audiences) {
+          const audiences = data.data.audiences as AudienceSegment[]
+          setAudienceSegments(audiences)
+          setSelectedAudiences([])
+        } else {
+          setAudienceSegments([])
+          setSelectedAudiences([])
+        }
+      } catch {
+        setAudienceSegments([])
+      } finally {
+        setLoadingAudiences(false)
+      }
+    }
+
+    fetchAudiences()
+  }, [playbookId])
+
+  function toggleAudience(name: string) {
+    setSelectedAudiences((prev) =>
+      prev.includes(name) ? prev.filter((a) => a !== name) : [...prev, name]
+    )
+  }
 
   async function handleCreate() {
     if (!playbookId || !name) {
@@ -259,7 +306,9 @@ function CreateCampaignModal({
         body: JSON.stringify({
           playbookId,
           name,
-          targetAudience: targetAudience || undefined,
+          targetAudience: selectedAudiences.length > 0
+            ? selectedAudiences.join(', ')
+            : undefined,
           budgetDaily: budgetDaily ? parseFloat(budgetDaily) : undefined,
           channels,
         }),
@@ -340,15 +389,44 @@ function CreateCampaignModal({
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Target Audience (optional)
+                  Target Audience
                 </label>
-                <input
-                  type="text"
-                  value={targetAudience}
-                  onChange={(e) => setTargetAudience(e.target.value)}
-                  placeholder="e.g., TIA Seekers"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                />
+                {loadingAudiences ? (
+                  <div className="text-sm text-gray-500 py-2">Loading audience segments...</div>
+                ) : audienceSegments.length > 0 ? (
+                  <div className="space-y-2">
+                    {audienceSegments.map((segment) => (
+                      <label
+                        key={segment.name}
+                        className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
+                          selectedAudiences.includes(segment.name)
+                            ? 'border-blue-500 bg-blue-50'
+                            : 'border-gray-200 hover:border-gray-300'
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={selectedAudiences.includes(segment.name)}
+                          onChange={() => toggleAudience(segment.name)}
+                          className="mt-0.5 h-4 w-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
+                        />
+                        <div>
+                          <p className="text-sm font-medium text-gray-900">{segment.name}</p>
+                          <p className="text-xs text-gray-500 mt-0.5">{segment.description}</p>
+                        </div>
+                      </label>
+                    ))}
+                    <p className="text-xs text-gray-400">
+                      {selectedAudiences.length === 0
+                        ? 'No audience selected — content will target all segments'
+                        : `${selectedAudiences.length} segment${selectedAudiences.length > 1 ? 's' : ''} selected`}
+                    </p>
+                  </div>
+                ) : (
+                  <p className="text-sm text-gray-500 py-2">
+                    No audience segments defined in this playbook.
+                  </p>
+                )}
               </div>
 
               <div>

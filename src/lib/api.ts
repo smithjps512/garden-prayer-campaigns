@@ -28,7 +28,11 @@ export function serverErrorResponse(
   message = 'Internal server error'
 ): NextResponse<ApiResponse> {
   console.error('Server error:', error)
-  return NextResponse.json({ success: false, error: message }, { status: 500 })
+  const detail = error instanceof Error ? error.message : String(error)
+  return NextResponse.json(
+    { success: false, error: `${message}: ${detail}` },
+    { status: 500 }
+  )
 }
 
 export function validationErrorResponse(errors: Record<string, string>): NextResponse<ApiResponse> {

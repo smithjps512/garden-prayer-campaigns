@@ -2,7 +2,6 @@ import { NextRequest } from 'next/server'
 import prisma from '@/lib/prisma'
 import { successResponse, errorResponse, serverErrorResponse } from '@/lib/api'
 import { ensureAuthenticated } from '@/lib/auth'
-import { Prisma } from '@prisma/client'
 
 interface RouteContext {
   params: Promise<{ id: string }>
@@ -30,20 +29,30 @@ export async function POST(request: NextRequest, context: RouteContext) {
       return errorResponse('Campaign not found', 404)
     }
 
-    // Validate campaign can be launched
+    // Validate campaign can be launched — collect all issues
+    const issues: string[] = []
+
     if (campaign.status !== 'approved' && campaign.status !== 'setup') {
-      return errorResponse(`Campaign cannot be launched from ${campaign.status} status`, 400)
+      return errorResponse(
+        `Campaign cannot be launched from "${campaign.status}" status. Campaign must be in "approved" or "setup" status.`,
+        400
+      )
     }
 
-    // Check all human tasks are completed
     if (campaign.tasks.length > 0) {
       const pendingTasks = campaign.tasks.map((t) => t.title).join(', ')
-      return errorResponse(`Complete these tasks before launch: ${pendingTasks}`, 400)
+      issues.push(`Incomplete tasks: ${pendingTasks}`)
     }
 
-    // Check campaign has content
     if (campaign._count.contents === 0) {
-      return errorResponse('Campaign must have at least one piece of content before launch', 400)
+      issues.push('No content generated yet — generate at least one piece of content')
+    }
+
+    if (issues.length > 0) {
+      return errorResponse(
+        `Cannot launch campaign. Missing prerequisites: ${issues.map((issue, i) => `${i + 1}) ${issue}`).join(' ')}`,
+        400
+      )
     }
 
     // Update campaign status
