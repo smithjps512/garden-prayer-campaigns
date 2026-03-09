@@ -2,7 +2,7 @@ import { NextRequest } from 'next/server'
 import prisma from '@/lib/prisma'
 import { successResponse, errorResponse, serverErrorResponse, parseBody } from '@/lib/api'
 import { ensureAuthenticated } from '@/lib/auth'
-import { generateContent, PlaybookContext, Hook, AudienceSegment } from '@/lib/claude'
+import { generateContent, PlaybookContext, Hook, AudienceSegment, findAudienceSegment, parseTargetAudiences } from '@/lib/claude'
 import { Prisma } from '@prisma/client'
 
 // POST /api/content/generate - Generate content batch for campaign
@@ -77,18 +77,46 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Determine target audience from campaign or use first audience
-    const targetAudience = campaign.targetAudience || playbookContext.audiences[0].name
+    // Determine target audiences from campaign or use first audience
+    const rawAudience = campaign.targetAudience || playbookContext.audiences[0].name
+    const audienceNames = parseTargetAudiences(rawAudience)
+    const availableNames = playbookContext.audiences.map((a) => a.name)
 
-    // Generate content using Claude
-    const result = await generateContent({
-      playbook: playbookContext,
-      targetAudience,
-      hooks,
-      contentType: body.contentType || 'organic_post',
-      platform: body.platform || 'both',
-      count: body.count || 5,
-    })
+    // Validate all audience segments exist (case-insensitive)
+    for (const name of audienceNames) {
+      if (!findAudienceSegment(playbookContext.audiences, name)) {
+        return errorResponse(
+          `Audience segment "${name}" not found. Available segments: ${availableNames.join(', ')}`,
+          400
+        )
+      }
+    }
+
+    // Generate content for each audience segment, distributing count across them
+    const countPerAudience = Math.max(1, Math.floor((body.count || 5) / audienceNames.length))
+    const allVariations: Array<{
+      variations: Awaited<ReturnType<typeof generateContent>>['variations']
+      metadata: Awaited<ReturnType<typeof generateContent>>['metadata']
+    }> = []
+
+    for (const audienceName of audienceNames) {
+      const matched = findAudienceSegment(playbookContext.audiences, audienceName)!
+      const result = await generateContent({
+        playbook: playbookContext,
+        targetAudience: matched.name, // Use canonical name from playbook
+        hooks,
+        contentType: body.contentType || 'organic_post',
+        platform: body.platform || 'both',
+        count: audienceNames.length === 1 ? (body.count || 5) : countPerAudience,
+      })
+      allVariations.push(result)
+    }
+
+    // Merge results
+    const result = {
+      variations: allVariations.flatMap((r) => r.variations),
+      metadata: allVariations[0].metadata,
+    }
 
     // Store generated content
     const createdContent = await Promise.all(
@@ -132,6 +160,10 @@ export async function POST(request: NextRequest) {
       metadata: result.metadata,
     }, 201)
   } catch (error) {
+    // If it's an audience lookup error, return 400 instead of 500
+    if (error instanceof Error && error.message.includes('not found in playbook')) {
+      return errorResponse(error.message, 400)
+    }
     return serverErrorResponse(error, 'Failed to generate content')
   }
 }

@@ -120,12 +120,38 @@ Respond in JSON format:
 
 Generate exactly {{count}} variations, mixing the hooks provided.`
 
+/**
+ * Find an audience segment by name using case-insensitive matching.
+ * Returns undefined if not found.
+ */
+export function findAudienceSegment(
+  audiences: AudienceSegment[],
+  name: string
+): AudienceSegment | undefined {
+  const trimmed = name.trim()
+  return audiences.find((a) => a.name.toLowerCase() === trimmed.toLowerCase())
+}
+
+/**
+ * Parse a target audience value that may be a comma-separated string or a single segment name.
+ * Returns an array of trimmed, non-empty segment names.
+ */
+export function parseTargetAudiences(targetAudience: string): string[] {
+  return targetAudience
+    .split(',')
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0)
+}
+
 function buildPrompt(request: GenerationRequest): string {
   const { playbook, targetAudience, hooks, contentType, platform, count } = request
 
-  const audience = playbook.audiences.find((a) => a.name === targetAudience)
+  const audience = findAudienceSegment(playbook.audiences, targetAudience)
   if (!audience) {
-    throw new Error(`Audience segment "${targetAudience}" not found in playbook`)
+    const available = playbook.audiences.map((a) => a.name).join(', ')
+    throw new Error(
+      `Audience segment "${targetAudience}" not found in playbook. Available segments: ${available}`
+    )
   }
 
   const hooksText = hooks.map((h) => `- [${h.id}] "${h.text}" (Angle: ${h.angle})`).join('\n')
