@@ -1,100 +1,49 @@
-# Sprint Status — Garden Prayer Campaigns
+# Sprint Status — Garden Prayer Campaign Engine
 
-> **Last Updated**: [Update this date when modifying]
-> **Active Sprint**: 3.5F — Frontend Completion
-> **Priority Business**: Melissa for Educators
+## Sprint 6A: Instagram + Custom Domain ✅ COMPLETE (with caveats)
+- [x] Custom domain live: campaigns.gardenprayerpublishing.com
+- [x] Meta OAuth scopes fixed (pages_show_list, auth_type=rerequest, deprecated scope replaced)
+- [x] Instagram account linked to Facebook Page
+- [x] Debug logging added to Meta callback
+- [ ] Meta integration display on dashboard — BLOCKED by App Review (see below)
 
----
+## Sprint 6B: Live Campaign Bug Fixes — IN PROGRESS
 
-## Sprint 3.5F — Frontend Completion
+### Blocking Bugs (fix first)
+- [ ] **Content generation 500** — Audience lookup is case-sensitive and crashes on mismatch
+- [ ] **Audience field UX** — Replace free-text with multi-select dropdown from playbook segments  
+- [ ] **Campaign launch 400** — Investigate and fix validation error, improve error messages
 
-### P0 — Blocking Core Usability
+### After Bugs Fixed
+- [ ] End-to-end content generation test
+- [ ] Content quality review (AI output matches playbook strategy)
+- [ ] Platform-specific formatting verification (FB vs IG)
+- [ ] Schedule and publish test post(s)
+- [ ] Record screencast for Meta App Review submission
 
-#### 1. Campaign Detail Page (`/campaigns/[id]/page.tsx`)
-- [ ] Create route and page component
-- [ ] Fetch and display campaign details (name, status, audience, channels, dates, budget)
-- [ ] Status badge with color-coded workflow indicator
-- [ ] Action buttons: Approve, Launch, Pause, Resume, Complete
-- [ ] Wire actions to existing API endpoints (`/api/campaigns/[id]/approve`, etc.)
-- [ ] Display associated tasks (linked from Task model)
-- [ ] Display associated content pieces
-- [ ] Success/error feedback on actions
-- [ ] Link from campaigns list page to detail page
+### Meta Integration (WAITING — do not block)
+- [ ] Meta App Review submission — in progress, needs screencast video
+- [ ] Privacy policy uploaded to gardenprayerpublishing.com
+- [ ] Advanced Access approval for: pages_show_list, pages_manage_posts, pages_read_user_content, instagram_basic, instagram_content_publish, pages_read_engagement
+- [ ] After approval: reconnect Meta, verify dashboard shows connection
+- [ ] Test Facebook posting
+- [ ] Test Instagram cross-posting
 
-#### 2. Task Action Buttons (`/tasks/page.tsx`)
-- [ ] Add "Complete" button to pending/in-progress tasks
-- [ ] Add "Block" button with reason input
-- [ ] Wire to `POST /api/tasks/[id]/complete` and `POST /api/tasks/[id]/block`
-- [ ] Show dependency info (which tasks this blocks/is blocked by)
-- [ ] Auto-refresh or optimistic update after action
-- [ ] Visual distinction between human and system tasks
+## Sprint 6C: Paid Ads Foundation — PLANNED
+- [ ] Meta Ads API integration
+- [ ] Boost top organic performers
+- [ ] Custom audiences
+- [ ] Lookalike audiences
+- [ ] Budget tracking + ROAS
 
-### P1 — Important for Content Workflow
-
-#### 3. Content Generation UI (`/content/page.tsx`)
-- [ ] "Generate Content" button opens modal/panel
-- [ ] Campaign selector dropdown (only active/approved campaigns)
-- [ ] Count, content type, platform inputs
-- [ ] Wire to `POST /api/content/generate`
-- [ ] Loading state during generation (Claude API can be slow)
-- [ ] Display generated content inline after completion
-- [ ] Error handling for generation failures
-
-#### 4. Content Editing
-- [ ] Inline or detail-page editing of headline, body, CTA text
-- [ ] Status change: Approve, Retire buttons
-- [ ] Image reassignment (use existing ImageLibrary component)
-- [ ] Save changes to `PATCH /api/content/[id]` (verify endpoint exists)
-
-### P2 — Operational Completeness
-
-#### 5. Escalation Actions (`/escalations/page.tsx`)
-- [ ] Add Acknowledge, Resolve, Dismiss action buttons
-- [ ] Create API endpoints if they don't exist (`PATCH /api/escalations/[id]`)
-- [ ] Display AI analysis and recommendation in prominent card
-- [ ] Confirmation dialog for dismiss action
-
-#### 6. Analytics — Basic Real Data (`/analytics/page.tsx`)
-- [ ] Query Performance model for real metrics
-- [ ] Replace static cards with actual totals (impressions, clicks, CTR, spend, ROAS)
-- [ ] Basic time-series chart (even simple, e.g., recharts or chart.js)
-- [ ] Per-campaign performance breakdown table
-- [ ] Empty state messaging when no data exists yet
-
----
-
-## Definition of Done
-
-- [ ] Campaign lifecycle can be driven entirely from UI (create → approve → manage tasks → launch)
-- [ ] Content can be generated, reviewed, edited, and approved from UI
-- [ ] All task actions available in UI (complete, block)
-- [ ] Tested end-to-end with Melissa for Educators business data
-- [ ] No dead-end pages (every page has functional actions, not just display)
-
----
+## Sprint 6D: Production Hardening — PLANNED
+- [ ] Error monitoring (Sentry)
+- [ ] Alerting on failures
+- [ ] Token refresh automation
+- [ ] Rate limit resilience
 
 ## Completed Sprints
-
-### Sprint 1: Foundation — ✅ COMPLETE
-Backend and frontend fully functional. Auth, dashboard, business CRUD all working.
-
-### Sprint 2: Playbooks + Content — ✅ Backend / ⚠️ Frontend Partial
-- Backend: Playbook CRUD, AI generation, document parsing, content generation, image matching all working via API
-- Frontend gap: Content library is display-only (no generation or editing UI)
-
-### Sprint 3: Campaigns + Tasks — ✅ Backend / ⚠️ Frontend Partial
-- Backend: Full campaign lifecycle API, task management, auto-task generation all working
-- Frontend gaps: No campaign detail page, task page is read-only
-
-### Sprint 3.5: Document Upload — ✅ COMPLETE
-PDF/DOCX/TXT/MD upload → parse → Claude extraction → playbook creation. Fully working.
-
----
-
-## Upcoming Sprints (Not Started)
-
-| Sprint | Focus | Blocked By |
-|--------|-------|-----------|
-| 4 | Meta Integration (OAuth, posting, scheduling) | Redis/BullMQ setup |
-| 5 | Analytics engine + optimization | Real post data from Sprint 4 |
-| 6 | Polish + production launch | All prior sprints |
+- Sprint 1-3: Core platform build (businesses, campaigns, playbooks, content, posting)
+- Sprint 4: Meta Facebook integration, OAuth flow, posting pipeline
+- Sprint 5: Intelligence layer — performance scoring, auto-generation, recommendations, analytics charts, cron jobs
+- Sprint 6A: Custom domain, Instagram linking, OAuth scope fixes
