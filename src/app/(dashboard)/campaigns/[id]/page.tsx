@@ -14,6 +14,13 @@ interface Business {
   brandColors: Record<string, string> | null
 }
 
+interface AudienceSegment {
+  name: string
+  description: string
+  painPoints: string[]
+  desires: string[]
+}
+
 interface PlaybookSummary {
   id: string
   name: string
@@ -393,7 +400,7 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
       </div>
 
       {/* Tab content */}
-      {activeTab === 'overview' && <OverviewTab campaign={campaign} />}
+      {activeTab === 'overview' && <OverviewTab campaign={campaign} onRefresh={fetchCampaign} />}
       {activeTab === 'tasks' && <TasksTab tasks={campaign.tasks} onRefresh={fetchCampaign} />}
       {activeTab === 'content' && <ContentTab contents={campaign.contents} />}
       {activeTab === 'posts' && <PostsTab posts={posts} loading={postsLoading} onRefresh={fetchPosts} />}
@@ -612,10 +619,11 @@ function StatusWorkflow({ currentStatus }: { currentStatus: string }) {
 
 // --- Overview Tab ---
 
-function OverviewTab({ campaign }: { campaign: Campaign }) {
+function OverviewTab({ campaign, onRefresh }: { campaign: Campaign; onRefresh: () => Promise<void> }) {
   const channels = campaign.channels as string[] | null
   const createdAt = new Date(campaign.createdAt).toLocaleDateString()
   const updatedAt = new Date(campaign.updatedAt).toLocaleDateString()
+  const canEdit = ['draft', 'review', 'approved', 'setup'].includes(campaign.status)
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -624,7 +632,13 @@ function OverviewTab({ campaign }: { campaign: Campaign }) {
         <h3 className="font-semibold text-gray-900">Campaign Details</h3>
 
         <div className="grid grid-cols-2 gap-4">
-          <Detail label="Target Audience" value={campaign.targetAudience} />
+          <AudienceEditor
+            campaignId={campaign.id}
+            playbookId={campaign.playbook.id}
+            currentAudience={campaign.targetAudience}
+            canEdit={canEdit}
+            onSaved={onRefresh}
+          />
           <Detail
             label="Channels"
             value={channels && channels.length > 0 ? channels.join(', ') : null}
@@ -724,6 +738,157 @@ function OverviewTab({ campaign }: { campaign: Campaign }) {
             <p className="text-sm text-gray-500">Escalations</p>
           </button>
         </div>
+      </div>
+    </div>
+  )
+}
+
+function AudienceEditor({
+  campaignId,
+  playbookId,
+  currentAudience,
+  canEdit,
+  onSaved,
+}: {
+  campaignId: string
+  playbookId: string
+  currentAudience: string | null
+  canEdit: boolean
+  onSaved: () => Promise<void>
+}) {
+  const [editing, setEditing] = useState(false)
+  const [segments, setSegments] = useState<AudienceSegment[]>([])
+  const [selected, setSelected] = useState<string[]>([])
+  const [loading, setLoading] = useState(false)
+  const [saving, setSaving] = useState(false)
+
+  async function startEditing() {
+    setEditing(true)
+    setLoading(true)
+    // Parse current audience into selected array
+    const current = currentAudience
+      ? currentAudience.split(',').map((s) => s.trim()).filter(Boolean)
+      : []
+    setSelected(current)
+    try {
+      const res = await fetch(`/api/playbooks/${playbookId}`)
+      const data = await res.json()
+      if (data.success && data.data.audiences) {
+        setSegments(data.data.audiences as AudienceSegment[])
+        // Match current selections case-insensitively
+        const segmentNames = (data.data.audiences as AudienceSegment[]).map((a) => a.name)
+        const matched = current
+          .map((c) => segmentNames.find((n) => n.toLowerCase() === c.toLowerCase()))
+          .filter((n): n is string => !!n)
+        setSelected(matched)
+      }
+    } catch {
+      // Keep empty segments
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  function toggleSegment(name: string) {
+    setSelected((prev) =>
+      prev.includes(name) ? prev.filter((a) => a !== name) : [...prev, name]
+    )
+  }
+
+  async function save() {
+    setSaving(true)
+    try {
+      const res = await fetch(`/api/campaigns/${campaignId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          targetAudience: selected.length > 0 ? selected.join(', ') : null,
+        }),
+      })
+      const data = await res.json()
+      if (data.success) {
+        setEditing(false)
+        await onSaved()
+      }
+    } catch {
+      // Silently fail
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  if (!editing) {
+    return (
+      <div>
+        <p className="text-sm text-gray-500">Target Audience</p>
+        <div className="flex items-center gap-2">
+          <p className="text-sm font-medium text-gray-900">
+            {currentAudience || '—'}
+          </p>
+          {canEdit && (
+            <button
+              onClick={startEditing}
+              className="text-xs text-blue-600 hover:text-blue-700"
+            >
+              Edit
+            </button>
+          )}
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="col-span-2">
+      <p className="text-sm text-gray-500 mb-2">Target Audience</p>
+      {loading ? (
+        <p className="text-sm text-gray-400">Loading segments...</p>
+      ) : segments.length > 0 ? (
+        <div className="space-y-2">
+          {segments.map((segment) => (
+            <label
+              key={segment.name}
+              className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
+                selected.includes(segment.name)
+                  ? 'border-blue-500 bg-blue-50'
+                  : 'border-gray-200 hover:border-gray-300'
+              }`}
+            >
+              <input
+                type="checkbox"
+                checked={selected.includes(segment.name)}
+                onChange={() => toggleSegment(segment.name)}
+                className="mt-0.5 h-4 w-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
+              />
+              <div>
+                <p className="text-sm font-medium text-gray-900">{segment.name}</p>
+                <p className="text-xs text-gray-500 mt-0.5">{segment.description}</p>
+              </div>
+            </label>
+          ))}
+          <p className="text-xs text-gray-400">
+            {selected.length === 0
+              ? 'No audience selected — content will target all segments'
+              : `${selected.length} segment${selected.length > 1 ? 's' : ''} selected`}
+          </p>
+        </div>
+      ) : (
+        <p className="text-sm text-gray-500">No audience segments defined in this playbook.</p>
+      )}
+      <div className="flex gap-2 mt-3">
+        <button
+          onClick={save}
+          disabled={saving}
+          className="px-3 py-1.5 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+        >
+          {saving ? 'Saving...' : 'Save'}
+        </button>
+        <button
+          onClick={() => setEditing(false)}
+          className="px-3 py-1.5 text-sm border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
+        >
+          Cancel
+        </button>
       </div>
     </div>
   )
