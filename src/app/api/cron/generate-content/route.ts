@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server'
 import prisma from '@/lib/prisma'
 import { successResponse, errorResponse, serverErrorResponse } from '@/lib/api'
-import { generateContent, PlaybookContext, Hook, AudienceSegment } from '@/lib/claude'
+import { generateContent, PlaybookContext, Hook, AudienceSegment, findAudienceSegment, parseTargetAudiences } from '@/lib/claude'
 import { Prisma } from '@prisma/client'
 
 const PIPELINE_THRESHOLD = 10 // Minimum content pieces before triggering generation
@@ -116,10 +116,21 @@ export async function GET(request: NextRequest) {
       const allAudienceNames = audiences.map((a) => a.name)
       const underrepAudiences = allAudienceNames.filter((a) => (audienceCounts[a] || 0) < 3)
 
-      // Pick a target audience, preferring underrepresented ones
-      const targetAudience = underrepAudiences.length > 0
-        ? underrepAudiences[Math.floor(Math.random() * underrepAudiences.length)]
-        : campaign.targetAudience || audiences[0].name
+      // Pick a target audience, preferring underrepresented ones.
+      // campaign.targetAudience may be comma-separated; resolve to a canonical name.
+      let targetAudience: string
+      if (underrepAudiences.length > 0) {
+        targetAudience = underrepAudiences[Math.floor(Math.random() * underrepAudiences.length)]
+      } else if (campaign.targetAudience) {
+        // Parse comma-separated audience string and pick the first valid one (case-insensitive)
+        const parsed = parseTargetAudiences(campaign.targetAudience)
+        const matched = parsed
+          .map((name) => findAudienceSegment(audiences, name))
+          .find((seg) => seg !== undefined)
+        targetAudience = matched ? matched.name : audiences[0].name
+      } else {
+        targetAudience = audiences[0].name
+      }
 
       // Build playbook context
       const playbookContext: PlaybookContext = {

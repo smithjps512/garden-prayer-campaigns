@@ -29,28 +29,37 @@ export async function POST(request: NextRequest, context: RouteContext) {
       return errorResponse('Campaign not found', 404)
     }
 
-    // Validate campaign can be launched — collect all issues
+    // Validate campaign can be launched — collect all issues.
+    // Common blocking conditions:
+    // 1. Campaign not in "approved" or "setup" status (must be approved first)
+    // 2. Incomplete human tasks (e.g. "Review Content", "Upload Images", "Setup Meta Ads")
+    // 3. No content generated for the campaign
     const issues: string[] = []
 
     if (campaign.status !== 'approved' && campaign.status !== 'setup') {
       return errorResponse(
-        `Campaign cannot be launched from "${campaign.status}" status. Campaign must be in "approved" or "setup" status.`,
+        `Campaign cannot be launched from "${campaign.status}" status. ` +
+        `It must be in "approved" or "setup" status. Current workflow: draft → approved → setup → live.`,
         400
       )
     }
 
+    if (!campaign.playbook) {
+      issues.push('Campaign has no linked playbook — assign a playbook before launching')
+    }
+
     if (campaign.tasks.length > 0) {
-      const pendingTasks = campaign.tasks.map((t) => t.title).join(', ')
-      issues.push(`Incomplete tasks: ${pendingTasks}`)
+      const pendingTasks = campaign.tasks.map((t) => `"${t.title}" (${t.status})`).join(', ')
+      issues.push(`Incomplete human tasks that must be finished first: ${pendingTasks}`)
     }
 
     if (campaign._count.contents === 0) {
-      issues.push('No content generated yet — generate at least one piece of content')
+      issues.push('No content exists for this campaign — generate at least one piece of content before launching')
     }
 
     if (issues.length > 0) {
       return errorResponse(
-        `Cannot launch campaign. Missing prerequisites: ${issues.map((issue, i) => `${i + 1}) ${issue}`).join(' ')}`,
+        `Cannot launch campaign "${campaign.name}". Missing prerequisites: ${issues.map((issue, i) => `${i + 1}) ${issue}`).join('. ')}`,
         400
       )
     }
