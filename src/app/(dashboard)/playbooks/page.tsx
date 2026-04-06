@@ -274,7 +274,10 @@ function CreatePlaybookModal({
   const [name, setName] = useState('')
 
   // Upload mode fields
-  const [files, setFiles] = useState<File[]>([])
+  // Store file contents in memory to avoid ERR_UPLOAD_FILE_CHANGED when the
+  // on-disk file is modified between selection and upload (common with recently
+  // converted or cloud-synced files).
+  const [files, setFiles] = useState<Array<{ name: string; size: number; type: string; buffer: ArrayBuffer }>>([])
   const [isDragging, setIsDragging] = useState(false)
   const [parsedPlaybook, setParsedPlaybook] = useState<ParsedPlaybook | null>(null)
 
@@ -315,13 +318,22 @@ function CreatePlaybookModal({
     }
   }
 
-  function addFiles(newFiles: File[]) {
+  async function addFiles(newFiles: File[]) {
     const validExtensions = ['.pdf', '.docx', '.txt', '.md']
     const validFiles = newFiles.filter((file) => {
       const ext = '.' + file.name.split('.').pop()?.toLowerCase()
       return validExtensions.includes(ext)
     })
-    setFiles((prev) => [...prev, ...validFiles])
+    // Read file contents into memory immediately to prevent ERR_UPLOAD_FILE_CHANGED
+    const buffered = await Promise.all(
+      validFiles.map(async (file) => ({
+        name: file.name,
+        size: file.size,
+        type: file.type || 'application/octet-stream',
+        buffer: await file.arrayBuffer(),
+      }))
+    )
+    setFiles((prev) => [...prev, ...buffered])
   }
 
   function removeFile(index: number) {
@@ -370,7 +382,12 @@ function CreatePlaybookModal({
 
     try {
       const formData = new FormData()
-      files.forEach((file) => formData.append('files', file))
+      // Reconstruct File objects from in-memory buffers to avoid stale file references
+      files.forEach((f) => {
+        const blob = new Blob([f.buffer], { type: f.type })
+        const file = new File([blob], f.name, { type: f.type })
+        formData.append('files', file)
+      })
       formData.append('businessName', selectedBusiness?.name || '')
 
       const res = await fetch('/api/playbooks/parse', {

@@ -456,6 +456,18 @@ Once bugs are fixed:
 
 ---
 
+## Fixed Issues (Do Not Re-Investigate)
+
+| Issue | Root Cause | Fix | Sprint |
+|-------|-----------|-----|--------|
+| **Playbook upload `ERR_UPLOAD_FILE_CHANGED`** | Browser holds a reference to the on-disk file. If the file changes between selection and upload (common with recently converted `.pptx→.pdf` or cloud-synced files), Chrome aborts the request. | Read file contents into `ArrayBuffer` immediately on selection (`addFiles()` in `playbooks/page.tsx`). Reconstruct `File` objects from in-memory buffers at upload time in `handleParseDocuments()`. | 7A |
+| **Meta `/me/accounts` returns empty in Development mode** | Facebook Login for Business app type requires Advanced Access for page enumeration. In Development mode, `/me/accounts` returns `data: []` even with valid tokens and correct scopes. Not a code bug. | Added manual Page ID + Token override form in `MetaConnection.tsx` + `/api/meta/manual-connect` endpoint. Bypasses OAuth page enumeration entirely. | 7A |
+| **Instagram publish without status polling** | Original `postToInstagram()` went directly from container creation to publish without checking container readiness. Could fail silently on large images or slow processing. | Added status polling loop (max 10 polls, 3s interval) between container creation and publish. Added `InstagramPublishError` class for rate limits, invalid aspect ratio, and inaccessible media URLs. | 7A |
+| **Content generation pillars hardcoded to Melissa** | `CONTENT_GENERATION_PROMPT` in `claude.ts` had hardcoded pillar list (`time-back`, `bigger-paycheck`, `not-chatgpt`). Other businesses got misclassified content. | Changed prompt to infer pillars dynamically from business positioning and audience context. | 7B |
+| **UTM links not in post body text** | `process-posts` cron passed UTM-tagged URL only as Meta `link` param (preview card), not in the message text. Instagram appended it separately but Facebook posts had no visible tracking link. | Append UTM-tagged link to message body for all platforms. Fall back to `business.websiteUrl` when content has no `ctaUrl`. Enforce platform character limits after appending. | 7C |
+
+---
+
 ## Session Rules for Claude Code
 - Start fresh each session — do not assume previous session state
 - Read CLAUDE.md and SPRINT_STATUS.md completely before making changes
