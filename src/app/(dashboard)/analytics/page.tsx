@@ -374,6 +374,7 @@ export default function AnalyticsPage() {
                       <th className="text-right px-4 py-3 font-medium text-gray-500">Impressions</th>
                       <th className="text-right px-4 py-3 font-medium text-gray-500">Clicks</th>
                       <th className="text-right px-4 py-3 font-medium text-gray-500">CTR</th>
+                      <th className="text-right px-4 py-3 font-medium text-gray-500">Conversions</th>
                       <th className="text-right px-4 py-3 font-medium text-gray-500">Engagement</th>
                       <th className="text-right px-4 py-3 font-medium text-gray-500">Spend</th>
                       <th className="text-right px-6 py-3 font-medium text-gray-500">ROAS</th>
@@ -397,6 +398,7 @@ export default function AnalyticsPage() {
                         <td className="px-4 py-3 text-right text-gray-700">{formatNumber(campaign.impressions)}</td>
                         <td className="px-4 py-3 text-right text-gray-700">{formatNumber(campaign.clicks)}</td>
                         <td className="px-4 py-3 text-right text-gray-700">{campaign.ctr}%</td>
+                        <td className="px-4 py-3 text-right text-gray-700">{formatNumber(campaign.conversionCount)}</td>
                         <td className="px-4 py-3 text-right text-gray-700">{formatNumber(campaign.engagement)}</td>
                         <td className="px-4 py-3 text-right text-gray-700">{formatCurrency(campaign.spend)}</td>
                         <td className="px-6 py-3 text-right text-gray-700">{campaign.roas}x</td>

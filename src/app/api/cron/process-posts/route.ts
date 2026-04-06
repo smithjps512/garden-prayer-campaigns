@@ -7,6 +7,7 @@ import {
   postToFacebook,
   postToInstagram,
   MetaError,
+  InstagramPublishError,
   getEscalationSeverity,
   getEscalationType,
 } from '@/lib/meta'
@@ -56,6 +57,7 @@ export async function GET(request: NextRequest) {
                         id: true,
                         name: true,
                         slug: true,
+                        websiteUrl: true,
                         metaPageId: true,
                         metaPageToken: true,
                         metaIgAccountId: true,
@@ -120,13 +122,31 @@ export async function GET(request: NextRequest) {
       if (post.content.headline) messageParts.push(post.content.headline)
       if (post.content.body) messageParts.push(post.content.body)
       if (post.content.ctaText) messageParts.push(post.content.ctaText)
-      const message = messageParts.join('\n\n')
 
-      // Apply UTM params to CTA URL if stored
+      // Build UTM-tagged link. If content has a ctaUrl, use it. Otherwise fall back
+      // to the business website so every post has a trackable link.
       const storedUtm = post.targeting as unknown as UTMParams | null
-      const ctaUrl = post.content.ctaUrl && storedUtm
-        ? appendUTMToUrl(post.content.ctaUrl, storedUtm)
-        : post.content.ctaUrl || undefined
+      const baseUrl = post.content.ctaUrl || business.websiteUrl || undefined
+      const ctaUrl = baseUrl && storedUtm
+        ? appendUTMToUrl(baseUrl, storedUtm)
+        : baseUrl || undefined
+
+      // Append UTM link to message body so it appears in the post copy.
+      // This ensures conversion tracking even when Meta doesn't show the link param.
+      if (ctaUrl) {
+        messageParts.push(ctaUrl)
+      }
+
+      let message = messageParts.join('\n\n')
+
+      // Enforce platform character limits after appending link
+      const FACEBOOK_CHAR_LIMIT = 63206
+      const INSTAGRAM_CHAR_LIMIT = 2200
+      if (post.platform === 'instagram' && message.length > INSTAGRAM_CHAR_LIMIT) {
+        message = message.slice(0, INSTAGRAM_CHAR_LIMIT)
+      } else if (post.platform === 'facebook' && message.length > FACEBOOK_CHAR_LIMIT) {
+        message = message.slice(0, FACEBOOK_CHAR_LIMIT)
+      }
 
       // Decrypt token
       let pageToken: string
@@ -144,10 +164,18 @@ export async function GET(request: NextRequest) {
       }
 
       // Post to Meta
+      // IMAGE ATTACHMENT: When Content.imageId is set, the image is included in content.image
+      // via the Prisma include above. For Facebook, postToFacebook uses /{page-id}/photos
+      // when imageUrl is present (photo post) and /{page-id}/feed when absent (text/link post).
+      // For Instagram, postToInstagram always requires an image (IG container creation needs image_url).
+      // Image URLs are Supabase Storage public URLs — used directly for Meta API calls.
       try {
         let platformPostId: string
 
         if (post.platform === 'facebook') {
+          if (post.content.image?.storageUrl) {
+            console.log(`[process-posts] Facebook photo post with image: ${post.content.image.storageUrl}`)
+          }
           const result = await postToFacebook(business.metaPageId!, pageToken, {
             message,
             link: ctaUrl,
@@ -166,12 +194,10 @@ export async function GET(request: NextRequest) {
             results.push({ postId: post.id, platform: post.platform, status: 'failed', error: errorMsg })
             continue
           }
-          const caption = ctaUrl
-            ? `${message}\n\n${ctaUrl}`
-            : message
+          // UTM link is already appended to message above — use message directly as caption
           const result = await postToInstagram(business.metaIgAccountId!, pageToken, {
             imageUrl: post.content.image.storageUrl,
-            caption,
+            caption: message,
           })
           platformPostId = result.id
         }
@@ -202,9 +228,11 @@ export async function GET(request: NextRequest) {
         // Failure — update post and create escalation
         const errorMessage = err instanceof MetaError
           ? `Meta API Error (${err.code}): ${err.message}`
-          : err instanceof Error
-            ? err.message
-            : 'Unknown posting error'
+          : err instanceof InstagramPublishError
+            ? `Instagram Publish Error (${err.statusCode}): ${err.message}`
+            : err instanceof Error
+              ? err.message
+              : 'Unknown posting error'
 
         await prisma.post.update({
           where: { id: post.id },
