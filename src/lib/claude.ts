@@ -97,9 +97,11 @@ For Instagram:
 - Body: 125-150 characters for feed, can use more in caption
 - More emoji-friendly, casual tone
 
+IMPORTANT: Each variation MUST be written specifically for the target audience above. Use their exact pain points, desires, and language. Do NOT produce generic copy that could apply to any audience.
+
 For each variation, classify it with:
-- pillar: The core value pillar it maps to. One of: "time-back", "bigger-paycheck", "not-chatgpt". Pick the closest match based on the primary message angle.
-- archetype: The content archetype. One of: "pain-point", "stat-proof", "contrast", "aspiration", "myth-buster", "teacher-reality", "individualization", "outcome". Pick based on the rhetorical approach used.
+- pillar: The core value pillar it maps to. Infer the best-fit pillar from the business positioning and audience context. Use a short kebab-case slug (e.g., "time-back", "immersion", "creation-speed").
+- archetype: The content archetype. One of: "pain-point", "stat-proof", "contrast", "aspiration", "myth-buster", "transformation", "curiosity-hook", "outcome". Pick based on the rhetorical approach used.
 
 Respond in JSON format:
 {
