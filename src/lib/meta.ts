@@ -331,7 +331,7 @@ export async function postToFacebook(
 }
 
 // =============================================================================
-// Posting — Instagram (Two-Step Publish Flow)
+// Posting — Instagram (Two-Step Publish Flow with Status Polling)
 // =============================================================================
 
 export interface InstagramPostInput {
@@ -339,10 +339,28 @@ export interface InstagramPostInput {
   caption: string
 }
 
+/** Instagram container status codes returned by the Graph API */
+type IgContainerStatus = 'FINISHED' | 'IN_PROGRESS' | 'PUBLISHED' | 'ERROR' | 'EXPIRED'
+
+export class InstagramPublishError extends Error {
+  public readonly statusCode: IgContainerStatus
+  constructor(statusCode: IgContainerStatus, message: string) {
+    super(message)
+    this.name = 'InstagramPublishError'
+    this.statusCode = statusCode
+  }
+}
+
 /**
  * Post to Instagram Business Account.
  * Step 1: Create a media container with the image URL and caption.
- * Step 2: Publish the container.
+ * Step 2: Poll container status until FINISHED (max 10 polls, 3s interval).
+ * Step 3: Publish the container.
+ *
+ * Handles explicit error cases:
+ * - Rate limit: 25 posts per 24 hours (Meta error code 32 or 4)
+ * - Invalid aspect ratio: Meta returns error on container creation
+ * - Media URL not accessible: Meta returns error on container creation
  */
 export async function postToInstagram(
   igAccountId: string,
@@ -350,17 +368,71 @@ export async function postToInstagram(
   input: InstagramPostInput
 ): Promise<MetaPostResult> {
   // Step 1: Create media container
-  const containerRes = await metaFetch(`/${igAccountId}/media`, {
-    method: 'POST',
-    body: {
-      image_url: input.imageUrl,
-      caption: input.caption,
-      access_token: pageToken,
-    },
-  })
-  const containerId = (containerRes as { id: string }).id
+  // TODO: Meta requires the image URL to be publicly accessible. Supabase Storage URLs are public by default.
+  let containerId: string
+  try {
+    const containerRes = await metaFetch(`/${igAccountId}/media`, {
+      method: 'POST',
+      body: {
+        image_url: input.imageUrl,
+        caption: input.caption,
+        access_token: pageToken,
+      },
+    })
+    containerId = (containerRes as { id: string }).id
+  } catch (err) {
+    if (err instanceof MetaError) {
+      // Detect specific IG container creation failures
+      const msg = err.message.toLowerCase()
+      if (msg.includes('aspect ratio')) {
+        throw new InstagramPublishError('ERROR', `Invalid aspect ratio: Instagram requires images between 4:5 and 1.91:1. Original error: ${err.message}`)
+      }
+      if (msg.includes('url') || msg.includes('download') || msg.includes('fetch') || msg.includes('accessible')) {
+        throw new InstagramPublishError('ERROR', `Media URL not accessible: Ensure the image is publicly available. Original error: ${err.message}`)
+      }
+      if (err.isRateLimited) {
+        throw new InstagramPublishError('ERROR', `Instagram rate limit reached (25 posts per 24 hours). Try again later. Original error: ${err.message}`)
+      }
+    }
+    throw err
+  }
 
-  // Step 2: Publish the container
+  // Step 2: Poll container status until FINISHED or ERROR (max 10 polls, 3s interval)
+  const MAX_POLLS = 10
+  const POLL_INTERVAL_MS = 3000
+
+  for (let i = 0; i < MAX_POLLS; i++) {
+    await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS))
+
+    const statusRes = await metaFetch(
+      `/${containerId}?fields=status_code,status&access_token=${pageToken}`
+    )
+    const statusData = statusRes as { status_code?: IgContainerStatus; status?: string }
+    const statusCode = statusData.status_code
+
+    console.log(`[Instagram] Container ${containerId} poll ${i + 1}/${MAX_POLLS}: status_code=${statusCode}`)
+
+    if (statusCode === 'FINISHED') {
+      break
+    }
+
+    if (statusCode === 'ERROR' || statusCode === 'EXPIRED') {
+      throw new InstagramPublishError(
+        statusCode,
+        `Instagram container failed with status ${statusCode}: ${statusData.status || 'Unknown error'}`
+      )
+    }
+
+    // If we've exhausted all polls and still IN_PROGRESS, fail
+    if (i === MAX_POLLS - 1) {
+      throw new InstagramPublishError(
+        'IN_PROGRESS',
+        `Instagram container still processing after ${MAX_POLLS} polls (${MAX_POLLS * POLL_INTERVAL_MS / 1000}s). Container ID: ${containerId}`
+      )
+    }
+  }
+
+  // Step 3: Publish the container
   const publishRes = await metaFetch(`/${igAccountId}/media_publish`, {
     method: 'POST',
     body: {

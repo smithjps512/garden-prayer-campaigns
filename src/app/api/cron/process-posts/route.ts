@@ -7,6 +7,7 @@ import {
   postToFacebook,
   postToInstagram,
   MetaError,
+  InstagramPublishError,
   getEscalationSeverity,
   getEscalationType,
 } from '@/lib/meta'
@@ -202,9 +203,11 @@ export async function GET(request: NextRequest) {
         // Failure — update post and create escalation
         const errorMessage = err instanceof MetaError
           ? `Meta API Error (${err.code}): ${err.message}`
-          : err instanceof Error
-            ? err.message
-            : 'Unknown posting error'
+          : err instanceof InstagramPublishError
+            ? `Instagram Publish Error (${err.statusCode}): ${err.message}`
+            : err instanceof Error
+              ? err.message
+              : 'Unknown posting error'
 
         await prisma.post.update({
           where: { id: post.id },

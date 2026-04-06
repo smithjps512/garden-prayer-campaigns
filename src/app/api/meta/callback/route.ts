@@ -66,9 +66,12 @@ export async function GET(request: NextRequest) {
     console.log('[Meta Callback] Step 3 complete: found', pages.length, 'pages')
 
     if (pages.length === 0) {
-      console.error('[Meta Callback] No pages returned. Token may lack pages_show_list permission. Check token debug info above.')
+      // TODO: AUDIT — In Development mode, /me/accounts returns empty even with valid tokens.
+      // This blocks Meta reviewers from connecting a test Page without Advanced Access.
+      // The manual override (Page ID + Token fields in Business settings) bypasses this blocker.
+      console.error('[Meta Callback] No pages returned. Token may lack pages_show_list permission or app is in Development mode. Check token debug info above.')
       return NextResponse.redirect(
-        `${appUrl}/businesses/${business.slug}?meta_error=${encodeURIComponent('No Facebook Pages found. Make sure your account manages at least one Page and that you granted all requested permissions.')}`
+        `${appUrl}/businesses/${business.slug}?meta_error=${encodeURIComponent('No Facebook Pages found. If your app is in Development mode, use the Manual Meta Connection form on the business page to enter your Page ID and Page Access Token directly.')}`
       )
     }
 
