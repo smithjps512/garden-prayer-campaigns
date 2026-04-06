@@ -5,8 +5,18 @@ import { successResponse, errorResponse, serverErrorResponse } from '@/lib/api'
 /**
  * POST /api/webhooks/conversion
  *
- * Receives conversion events from UTM-tagged traffic.
- * Maps UTM params back to Campaign and Content, creates a Conversion record.
+ * Receives conversion events from UTM-tagged traffic, Clerk signups, and
+ * Stripe purchases. Maps events back to Campaign and Content, creates
+ * a Conversion record.
+ *
+ * Accepts two payload shapes:
+ *
+ * 1. UTM-based (original):
+ *    { type, utm_source, utm_medium, utm_campaign, utm_content, value?, ... }
+ *
+ * 2. Integration-based (Clerk/Stripe):
+ *    { type, source: "clerk"|"stripe", campaignSlug?, userId?, amount?, currency?, ... }
+ *    May also include utm_* params from cookie attribution.
  *
  * No auth required (webhook endpoint) but validates payload structure.
  */
@@ -30,18 +40,24 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // UTM params — at least utm_source is required to map the conversion
-    const utmSource = (data.utm_source || data.utmSource) as string | undefined
+    // Support both naming conventions for UTM params
+    const utmSource = (data.utm_source || data.utmSource || data.source) as string | undefined
     const utmMedium = (data.utm_medium || data.utmMedium) as string | undefined
-    const utmCampaign = (data.utm_campaign || data.utmCampaign) as string | undefined
+    const utmCampaign = (data.utm_campaign || data.utmCampaign || data.campaignSlug) as string | undefined
     const utmContent = (data.utm_content || data.utmContent) as string | undefined
 
+    // Integration-specific fields (Clerk/Stripe payloads)
+    const source = data.source as string | undefined // "clerk", "stripe", etc.
+    const campaignSlug = data.campaignSlug as string | undefined
+    const amount = data.amount !== undefined ? Number(data.amount) : undefined
+    const currency = data.currency as string | undefined
+
     if (!utmSource) {
-      return errorResponse('Missing utm_source parameter', 400)
+      return errorResponse('Missing utm_source (or source) parameter', 400)
     }
 
     // Optional fields
-    const value = data.value !== undefined ? Number(data.value) : undefined
+    const value = data.value !== undefined ? Number(data.value) : amount
     const sessionId = data.sessionId as string | undefined
     const userAgent = data.userAgent as string | undefined
     const ipAddress = data.ipAddress as string | undefined
@@ -88,11 +104,12 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // If we couldn't find a business from content, try to find one from utm_campaign slug
-    if (!businessId && utmCampaign) {
+    // Try campaignSlug (from Clerk/Stripe integration) or utm_campaign to find campaign
+    const slugToSearch = campaignSlug || utmCampaign
+    if (!businessId && slugToSearch) {
       const campaign = await prisma.campaign.findFirst({
         where: {
-          name: { contains: utmCampaign, mode: 'insensitive' },
+          name: { contains: slugToSearch, mode: 'insensitive' },
         },
         select: {
           id: true,
@@ -102,6 +119,23 @@ export async function POST(request: NextRequest) {
       if (campaign) {
         campaignId = campaign.id
         businessId = campaign.playbook.businessId
+      }
+    }
+
+    // If still no business, try matching by source for known integrations
+    // (e.g., "clerk" or "stripe" source from a specific marketing site)
+    if (!businessId && source) {
+      // Try to find business by website URL pattern
+      const siteHints: Record<string, string> = {
+        // If the source contains a domain hint, use it
+      }
+      const hint = siteHints[source]
+      if (hint) {
+        const biz = await prisma.business.findFirst({
+          where: { websiteUrl: { contains: hint, mode: 'insensitive' } },
+          select: { id: true },
+        })
+        if (biz) businessId = biz.id
       }
     }
 
@@ -136,7 +170,13 @@ export async function POST(request: NextRequest) {
       },
     })
 
-    return successResponse({ id: conversion.id, type: conversion.type }, 200)
+    return successResponse({
+      id: conversion.id,
+      type: conversion.type,
+      source: source || 'utm',
+      campaignId: campaignId || null,
+      currency: currency || null,
+    }, 200)
   } catch (error) {
     return serverErrorResponse(error, 'Failed to record conversion')
   }
