@@ -1,5 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk'
 import mammoth from 'mammoth'
+import pdfParse from 'pdf-parse'
 
 const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
@@ -94,26 +95,10 @@ async function parseFile(file: File): Promise<string> {
 }
 
 async function parsePdf(buffer: Buffer): Promise<string> {
-  // Use pdfjs-dist for server-side PDF text extraction
-  const pdfjsLib = await import('pdfjs-dist')
-
-  // Load the PDF document
-  const uint8Array = new Uint8Array(buffer)
-  const loadingTask = pdfjsLib.getDocument({ data: uint8Array })
-  const pdf = await loadingTask.promise
-
-  // Extract text from all pages
-  const textParts: string[] = []
-  for (let i = 1; i <= pdf.numPages; i++) {
-    const page = await pdf.getPage(i)
-    const textContent = await page.getTextContent()
-    const pageText = textContent.items
-      .map((item) => ('str' in item ? item.str : ''))
-      .join(' ')
-    textParts.push(pageText)
-  }
-
-  return textParts.join('\n\n')
+  // pdf-parse reads PDF buffers directly with no worker dependency,
+  // making it the correct choice for Vercel serverless environments.
+  const data = await pdfParse(buffer)
+  return data.text
 }
 
 async function parseDocx(buffer: Buffer): Promise<string> {
