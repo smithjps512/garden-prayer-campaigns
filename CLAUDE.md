@@ -132,8 +132,8 @@ const createdAt = new Date(business.createdAt).toLocaleDateString()
 - Client components fetching businesses must extract `.data.items`
 
 ### PDF Parsing
-- `pdf-parse` npm package requires DOM APIs — breaks in Node.js server
-- Use `pdfjs-dist` instead with dynamic import for server-side text extraction
+- Use `pdf-parse@1.x` for server-side PDF extraction. v1.x is pure Node.js with no worker dependency.
+- Do NOT use `pdfjs-dist` (worker file breaks on Vercel serverless) and do NOT upgrade to `pdf-parse` v2.x (v2 internally depends on `pdfjs-dist` and reintroduces the same crash).
 - DOCX parsing uses `mammoth` (works fine server-side)
 
 ---
@@ -237,7 +237,7 @@ The playbook is the most critical piece of the system. It contains core value pi
 - Founder Story
 
 ### Playbook Creation (two methods)
-1. **Upload Materials**: Upload PDF/DOCX/TXT/MD → parsed by pdfjs-dist/mammoth → Claude extracts structured playbook → review/edit → save
+1. **Upload Materials**: Upload PDF/DOCX/TXT/MD → parsed by pdf-parse/mammoth → Claude extracts structured playbook → review/edit → save
 2. **AI Generate**: Fill in business brief form → Claude generates complete playbook
 
 ### Campaign Lifecycle
