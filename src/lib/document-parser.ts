@@ -1,6 +1,10 @@
 import Anthropic from '@anthropic-ai/sdk'
 import mammoth from 'mammoth'
-import pdfParse from 'pdf-parse'
+// Import the inner module directly. pdf-parse's index.js has top-level
+// debug code that reads a bundled test PDF when `module.parent` is falsy,
+// which crashes Next.js build-time page data collection on Vercel with
+// ENOENT on ./test/data/05-versions-space.pdf. The inner module skips it.
+import pdfParse from 'pdf-parse/lib/pdf-parse.js'
 
 const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
