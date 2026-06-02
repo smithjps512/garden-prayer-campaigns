@@ -12,7 +12,9 @@
     "db:migrate": "prisma migrate dev",
     "db:seed": "npx ts-node --compiler-options {\"module\":\"CommonJS\"} prisma/seed.ts",
     "db:studio": "prisma studio",
-    "db:reset": "prisma migrate reset"
+    "db:reset": "prisma migrate reset",
+    "onboard:gameview": "npx ts-node --compiler-options {\"module\":\"CommonJS\"} scripts/onboard-gameview.ts",
+    "smoke:ig": "npx ts-node --compiler-options {\"module\":\"CommonJS\"} scripts/smoke-ig-post.ts"
   },
   "prisma": {
     "seed": "npx ts-node --compiler-options {\"module\":\"CommonJS\"} prisma/seed.ts"
